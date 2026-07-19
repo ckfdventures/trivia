@@ -19,11 +19,13 @@ import { Discover, Marketplace } from "./pages/dashboard/Placeholders";
 import { AuthProvider } from "./lib/auth";
 import { ProtectedRoute } from "./components/ProtectedRoute";
 import { DashboardLayout } from "./components/DashboardLayout";
+import { SessionExpiredModal } from "./components/SessionExpiredModal";
 
 export default function App() {
   return (
     <BrowserRouter>
       <AuthProvider>
+        <SessionExpiredModal />
         <Routes>
           <Route path="/" element={<Landing />} />
           <Route path="/login" element={<Login />} />
