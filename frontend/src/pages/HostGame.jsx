@@ -212,7 +212,7 @@ export default function HostGame() {
                     </div>
                     <h1
                       className="font-display text-indigo-950 text-3xl sm:text-4xl font-black mt-2"
-                      data-testid="host-question-text"
+                      data-testid="host-review-question-text"
                     >
                       {rev.text}
                     </h1>

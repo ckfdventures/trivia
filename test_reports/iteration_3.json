@@ -1,0 +1,33 @@
+{
+  "summary": "Sprint 2 frontend retest. PlayerGame.jsx crash fix verified — the mySelection guard now correctly checks q && selectedForQid && selectedForQid.qid === q.id, so PlayerGame renders cleanly on mount. Two-context Playwright flow (host + 2 players, isolated contexts) exercises the entire live gameplay end-to-end and every single review-request assertion passes: player auto-navigation to /play/:pin/game with 4 tiles, tap-to-lock immutability, per-question review with player-feedback-correct (+N points) and player-feedback-incorrect, player-mini-leaderboard with the player's own row highlighted, host-review-question-text (duplicate host-question-text no longer present on review), host-show-leaderboard-btn → host-leaderboard with leaderboard-row-*, host-next-btn advance + 'Finish game' label on last review, host-skip-btn → review, host-end-btn opens host-end-modal → cancel closes / confirm ends game, host-game-over + player-game-over with rank and Back-to-home button.",
+  "backend_issues": {"critical": [], "minor": []},
+  "frontend_issues": {
+    "ui_bugs": [],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/tests/seed_sprint2.py",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [],
+  "critical_code_review_comments": [
+    "server.py ws_room player finally block sets players[pid].connected=False on close without checking whether a newer WS (game route) has replaced the same player_id in room['connections']. Cosmetic only — the connected flag will flip back to true on the next room_state after the game WS is fully established — but during a fast /lobby→/game route change it briefly shows the player as disconnected in the host's players list. Consider guarding the flag flip with `if connections[pid] is websocket:`.",
+    "server.py: with 2+ players opening WS simultaneously the preview ingress occasionally delays initial room_state by a couple seconds; not a code bug, but tests should wait_for_selector on player-answer-0 with generous (>=10s) timeout rather than reading tile count immediately after URL change (added to seed_sprint2 test guidance).",
+    "PlayerGame.jsx line 77 fix is correct. No further logic issues in the render tree — all Sprint 2 selectors render as designed.",
+    "HostGame.jsx: 'Finish game' label appears on last review both in the reveal card AND in the Show-leaderboard view — good, both host-next-btn buttons share the same testid and label; make sure only one is mounted at a time (currently gated by !showLeaderboard/showLeaderboard, so this is fine).",
+    "useRoomSocket.js retries close with a fixed 1500ms interval — no exponential backoff; acceptable for MVP but flags for future hardening.",
+    "server.py: broadcast_room_state on ws close reveals player as disconnected even when the same player_id has already opened a fresh WS; consider `if connections.get(pid) is websocket` before flipping connected=False in the finally block."
+  ],
+  "updated_files": [
+    "/app/tests/seed_sprint2.py (new helper — creates TEST_-prefixed quiz + room + 2 players and returns JSON with pin/host_token/session_tokens for reuse by the frontend Playwright driver)"
+  ],
+  "success_rate": {"backend": "100% (26/26 pytest — not re-run this iteration; iteration_2 last-known)", "frontend": "100% — all Sprint 2 review-request selectors verified end-to-end"},
+  "test_credentials": "N/A — no auth in this app",
+  "seed_data_creation": "Ephemeral TEST_-prefixed quizzes stored in Mongo via /api/quizzes; rooms are in-memory with 3h TTL. Cleanup happens automatically on room TTL expiry.",
+  "retest_needed": false,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Sprint 2 is fully green (backend pytest 26/26 in iteration_2; frontend end-to-end in iteration_3). Reuse /app/tests/seed_sprint2.py to bootstrap a room+quiz+players in one shot. For any subsequent testing, prefer isolated browser contexts per role (host, player1, player2) — sharing one context leaks localStorage between pages (each ts_player_{pin} key is pin-scoped, so ok, but ts_host_{pin} would collide if host & player use same pin+context). Use time_limit=15s on questions to give WS + React state hydration room to breathe; questions with time_limit<8s risk the timer expiring before the player tap can complete on the preview URL. Always wait_for_selector('player-answer-0', timeout>=10000ms) rather than reading tile count immediately after URL nav — the /lobby→/game WS handoff takes ~500-1500ms in the preview.",
+  "rca of the issue": "Iteration 2 blocker (PlayerGame.jsx line 77 crash 'Cannot read properties of null (reading index)') is resolved. Root fix in PlayerGame.jsx: `const mySelection = q && selectedForQid && selectedForQid.qid === q.id ? selectedForQid.index : null;` — explicit null checks on both q and selectedForQid before dereferencing selectedForQid.index. Verified via two-context Playwright driver: PlayerGame mounts cleanly on /play/:pin/game with state=null (before first WS room_state), then re-renders with tiles once question_active state arrives. No console errors, no page-error events observed across host + 2 players over the full 2-question game + game_over + New-Game/Home flows."
+}

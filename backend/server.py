@@ -470,7 +470,6 @@ async def next_question(pin: str, host_token: str):
         raise HTTPException(status_code=403, detail="Invalid host token")
     if room["status"] not in ("question_review", "lobby"):
         raise HTTPException(status_code=409, detail=f"Cannot advance from status {room['status']}")
-    # If last question was answered, end game
     if room["current_index"] >= len(room["quiz"]["questions"]) - 1 and room["status"] == "question_review":
         await end_game(pin)
         return {"status": rooms[pin]["status"]}

@@ -74,7 +74,7 @@ export default function PlayerGame() {
     }
   }, [state?.status, q?.id, selectedForQid?.qid]);
 
-  const mySelection = selectedForQid?.qid === q?.id ? selectedForQid.index : null;
+  const mySelection = q && selectedForQid && selectedForQid.qid === q.id ? selectedForQid.index : null;
   const myResult = useMemo(() => {
     if (!rev || !session) return null;
     const pr = rev.player_results?.[session.player_id];
