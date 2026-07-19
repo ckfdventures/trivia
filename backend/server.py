@@ -279,6 +279,7 @@ async def start_room(pin: str, host_token: str):
         raise HTTPException(status_code=400, detail="At least 1 player is required to start")
 
     room["status"] = "in_progress"
+    await broadcast_room_state(pin)
     await broadcast_event(pin, {"type": "game_started", "data": {"pin": pin}})
     return {"status": "in_progress"}
 
