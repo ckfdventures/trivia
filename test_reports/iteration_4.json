@@ -1,0 +1,50 @@
+{
+  "summary": "Sprint 3 backend + frontend testing complete. All 25 pytest cases pass. All Sprint 3 frontend flows pass EXCEPT the session-expired-modal: when a 401 fires from a dashboard API, ProtectedRoute redirects to /login before SessionExpiredModal can render (setUser(false) inside the sessionExpiredHandler unmounts DashboardLayout which owns the modal). One critical bug to fix.",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "SessionExpiredModal",
+        "issue": "Modal never displays. When a dashboard API returns 401, /app/frontend/src/lib/auth.js#sessionExpiredHandler sets sessionExpired=true AND user=false in the same tick. ProtectedRoute reacts to user=false and Navigates to /login, unmounting DashboardLayout which owns <SessionExpiredModal/>. User is dumped straight onto /login with zero UI feedback that their session expired.",
+        "selector": "[data-testid=\"session-expired-modal\"]",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/test_sprint3.py",
+    "/app/backend/tests/backend_test.py",
+    "/app/test_reports/pytest/sprint3_results.xml"
+  ],
+  "action_items": [
+    "Fix session-expired-modal: either (a) move <SessionExpiredModal/> out of DashboardLayout to App-level (e.g., render inside <AuthProvider> next to <Routes/>) so it survives the ProtectedRoute redirect, or (b) drop `setUser(false)` from the sessionExpiredHandler and let the modal's 'Sign in again' button handle the /login navigation. Option (a) is cleaner and matches the review-request contract that expects the modal to appear with dismiss+login buttons before any redirect.",
+    "Optional profanity hardening: the current word-boundary regex `\\bstupid\\b` doesn't match `TEST_stupid` because `_` is a word char. Not required by the spec but if you want strict filtering of embedded profanity, either strip `_` before matching or use a looser boundary."
+  ],
+  "critical_code_review_comments": [
+    "auth.js sessionExpiredHandler mutates two independent pieces of state (sessionExpired=true, user=false) that race with ProtectedRoute — root cause of the modal bug above.",
+    "server.py DEFAULT_RETENTION_DAYS is enforced by Pydantic ge=1,le=365 → good. GET /api/settings returns a synthesized default doc when none exists (`{owner_id, retention_days: 30}`) — matches spec.",
+    "server.py end_game persists the session even when the game ended via `/end` (early termination). Good — hardest_question is computed from question_stats and may be null if 0 answers, but code defensively picks the first stat.",
+    "server.py /api/question-bank/upload accepts CSV/JSON, honors flexible headers (option1/opt1/o1, correct/correct_option/answer/correct_index) and returns row-numbered errors ('Row 2: missing option4') — matches the review-request contract.",
+    "server.py /api/analytics/question-difficulty aggregates across sessions correctly; scoped by owner_id so cross-tenant leakage is impossible.",
+    "profanity.py wordlist is space/word-boundary matched; underscore-bounded tokens like `TEST_stupid` do NOT match — intentional or oversight? Non-blocking.",
+    "auth.py seed_admin correctly (1) inserts if missing, (2) updates hash if admin exists with a different password, (3) creates the unique index on email. bcrypt hash starts with $2b$ — verified in TestAdminSeed."
+  ],
+  "updated_files": [
+    "/app/backend/tests/test_sprint3.py (new — 25 pytest cases for Sprint 3)"
+  ],
+  "success_rate": {
+    "backend": "100% (25/25 Sprint 3 pytest passing; Sprint 1+2 not re-run this iteration)",
+    "frontend": "94% (17/18 Sprint 3 flows — session-expired-modal is the only failure)"
+  },
+  "test_credentials": "Admin: admin@triviastream.com / admin123 (seeded, bcrypt $2b$). Freshly-registered test user created inline during Playwright register-flow test (email pw_tester_<epoch>@example.com / hunter22).",
+  "seed_data_creation": "Test-only quizzes prefixed with TEST_ (created via test_sprint3.py fixtures) and PW_Sprint3_Import (created via Playwright import flow). Rooms are ephemeral (in-memory, 3h TTL). One session document persisted for TEST_sess_* quizzes (used to verify /sessions/mine, /sessions/{id}, /sessions/{id}/report, and /analytics/question-difficulty).",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Sprint 3 backend is 100% green via /app/backend/tests/test_sprint3.py (25 tests). The single failing frontend flow is the session-expired-modal — reproducible in <5 lines: (1) login as admin; (2) navigate to /dashboard/games; (3) `window.localStorage.setItem('ts_auth_token','tampered.bogus.token')`; (4) click nav-reports (or any other data-fetching page); (5) observe redirect to /login without the modal ever mounting. The fix belongs in /app/frontend/src/lib/auth.js and/or /app/frontend/src/App.js (move <SessionExpiredModal/> outside <ProtectedRoute/>). Once fixed, re-run only that one Playwright block.",
+  "rca of the issue": "Root cause: <SessionExpiredModal/> lives inside <DashboardLayout/> which lives inside <ProtectedRoute/>. When a dashboard API call returns 401, api.js interceptor invokes the handler in auth.js which does BOTH `setSessionExpired(true)` and `setUser(false)` in the same tick. React commits both state updates in the same render. ProtectedRoute then evaluates `if (!user)` → renders <Navigate to='/login'/> which unmounts the entire DashboardLayout subtree — including the modal — in the same commit. Net effect: modal renders for 0ms and the user is dumped on /login with no feedback. Mitigation: promote <SessionExpiredModal/> to App root (rendered inside <AuthProvider/> next to <Routes/>) so it persists across the redirect. Alternate: don't call setUser(false) from the handler — but that risks the app refetching /auth/me indefinitely with a bad token. Recommended: promote the modal + keep both state updates (small React refactor, ~3 lines)."
+}

@@ -1,8 +1,12 @@
-from fastapi import FastAPI, APIRouter, HTTPException, WebSocket, WebSocketDisconnect
+from fastapi import FastAPI, APIRouter, HTTPException, WebSocket, WebSocketDisconnect, Depends, UploadFile, File, Request, Response
+from fastapi.responses import PlainTextResponse
 from dotenv import load_dotenv
 from starlette.middleware.cors import CORSMiddleware
 from motor.motor_asyncio import AsyncIOMotorClient
 import os
+import io
+import csv
+import json as json_lib
 import logging
 import random
 import string
@@ -18,6 +22,9 @@ import uuid
 ROOT_DIR = Path(__file__).parent
 load_dotenv(ROOT_DIR / '.env')
 
+from auth import make_router as make_auth_router, seed_admin
+from profanity import contains_profanity, clean as profanity_word
+
 mongo_url = os.environ['MONGO_URL']
 client = AsyncIOMotorClient(mongo_url)
 db = client[os.environ['DB_NAME']]
@@ -32,9 +39,28 @@ ROOM_TTL_SECONDS = 3 * 60 * 60
 BASE_POINTS = 1000
 STREAK_BONUS_STEP = 100
 HOST_PROMOTION_GRACE_SECONDS = 20
+DEFAULT_RETENTION_DAYS = 30
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
+
+
+# ---------- Auth wiring ----------
+def _get_db():
+    return db
+
+auth_router, get_current_user = make_auth_router(_get_db)
+
+
+async def optional_current_user(request: Request):
+    """Return the current user or None (no 401 if unauthenticated)."""
+    auth_header = request.headers.get("Authorization", "")
+    if not auth_header.startswith("Bearer "):
+        return None
+    try:
+        return await get_current_user(request)
+    except HTTPException:
+        return None
 
 
 # ---------- Models ----------
@@ -62,6 +88,7 @@ class Quiz(BaseModel):
     id: str = Field(default_factory=lambda: str(uuid.uuid4()))
     title: str
     questions: List[Question]
+    owner_id: Optional[str] = None
     created_at: str = Field(default_factory=lambda: datetime.now(timezone.utc).isoformat())
 
 
@@ -78,6 +105,15 @@ class AnswerRequest(BaseModel):
     session_token: str
     question_id: str
     option_index: int
+
+
+class ImportBankRequest(BaseModel):
+    title: str
+    questions: List[QuestionIn]
+
+
+class SettingsIn(BaseModel):
+    retention_days: int = Field(ge=1, le=365)
 
 
 # ---------- In-memory state ----------
@@ -99,6 +135,28 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def _validate_question_payload(q: QuestionIn, idx: int, check_profanity: bool = True):
+    if not q.text.strip():
+        raise HTTPException(status_code=400, detail=f"Question {idx+1}: text is required")
+    if len(q.options) != 4:
+        raise HTTPException(status_code=400, detail=f"Question {idx+1}: exactly 4 options are required")
+    for j, opt in enumerate(q.options):
+        if not opt.strip():
+            raise HTTPException(status_code=400, detail=f"Question {idx+1}: option {j+1} is empty")
+    if q.correct_index < 0 or q.correct_index > 3:
+        raise HTTPException(status_code=400, detail=f"Question {idx+1}: correct_index must be 0-3")
+    if q.time_limit < 5 or q.time_limit > 120:
+        raise HTTPException(status_code=400, detail=f"Question {idx+1}: time_limit must be 5-120s")
+    if check_profanity:
+        word = profanity_word(q.text)
+        if word:
+            raise HTTPException(status_code=400, detail=f"Question {idx+1}: contains inappropriate language ('{word}')")
+        for j, opt in enumerate(q.options):
+            w = profanity_word(opt)
+            if w:
+                raise HTTPException(status_code=400, detail=f"Question {idx+1}, option {j+1}: contains inappropriate language ('{w}')")
+
+
 def leaderboard_of(room: dict) -> list:
     scores = room["scores"]
     entries = []
@@ -111,9 +169,7 @@ def leaderboard_of(room: dict) -> list:
             "streak": s["streak"],
             "cumulative_time": s["cumulative_time"],
         })
-    # sort by -points, then cumulative_time ASC (faster is better)
     entries.sort(key=lambda e: (-e["points"], e["cumulative_time"]))
-    # add rank and tie flags
     prev_points = None
     rank = 0
     for i, e in enumerate(entries):
@@ -127,6 +183,13 @@ def leaderboard_of(room: dict) -> list:
     for e in entries:
         e["tie"] = points_counts[e["points"]] > 1 and e["points"] > 0
     return entries
+
+
+def current_question(room: dict) -> Optional[dict]:
+    idx = room["current_index"]
+    if idx < 0 or idx >= len(room["quiz"]["questions"]):
+        return None
+    return room["quiz"]["questions"][idx]
 
 
 def public_room_state(pin: str) -> dict:
@@ -185,13 +248,6 @@ def public_room_state(pin: str) -> dict:
     return payload
 
 
-def current_question(room: dict) -> Optional[dict]:
-    idx = room["current_index"]
-    if idx < 0 or idx >= len(room["quiz"]["questions"]):
-        return None
-    return room["quiz"]["questions"][idx]
-
-
 async def broadcast_room_state(pin: str):
     if pin not in rooms:
         return
@@ -225,18 +281,6 @@ async def broadcast_event(pin: str, event: dict):
             rooms[pin]["connections"].pop(pid, None)
 
 
-async def send_to_player(pin: str, player_id: str, event: dict) -> bool:
-    ws = rooms.get(pin, {}).get("connections", {}).get(player_id)
-    if not ws:
-        return False
-    try:
-        await ws.send_json(event)
-        return True
-    except Exception:
-        rooms[pin]["connections"].pop(player_id, None)
-        return False
-
-
 # ---------- Question lifecycle ----------
 async def start_question(pin: str):
     if pin not in rooms:
@@ -253,7 +297,6 @@ async def start_question(pin: str):
     r["status"] = "question_active"
     r["answers"].setdefault(r["current_index"], {})
 
-    # cancel any previous timer task
     prev_task = r.get("question_task")
     if prev_task and not prev_task.done():
         prev_task.cancel()
@@ -286,15 +329,12 @@ async def end_question(pin: str, qid: str):
     if q is None:
         return
     answers_map = r["answers"].setdefault(r["current_index"], {})
-
-    # Score any player who didn't answer as incorrect (streak reset)
     for pid in list(r["players"].keys()):
         if pid not in answers_map:
             s = r["scores"].setdefault(pid, {"points": 0, "streak": 0, "cumulative_time": 0.0})
             s["streak"] = 0
 
     r["status"] = "question_review"
-    # cancel timer if still scheduled
     task = r.get("question_task")
     if task and not task.done():
         task.cancel()
@@ -309,41 +349,113 @@ async def end_game(pin: str):
     task = r.get("question_task")
     if task and not task.done():
         task.cancel()
+    # Persist session summary
+    try:
+        await _persist_session(pin)
+    except Exception as e:
+        logger.exception("failed to persist session for %s: %s", pin, e)
     await broadcast_room_state(pin)
 
 
-# ---------- Routes ----------
+async def _persist_session(pin: str):
+    r = rooms.get(pin)
+    if not r:
+        return
+    quiz = r["quiz"]
+    total_players = len(r["players"])
+    if total_players == 0 and not r.get("scores"):
+        return
+
+    # Per-question stats
+    q_stats = []
+    total_correct_all = 0
+    total_answers_all = 0
+    total_time_all = 0.0
+    total_time_count = 0
+    hardest = None
+    for idx, q in enumerate(quiz["questions"]):
+        answers = r["answers"].get(idx, {})
+        n_answers = len(answers)
+        n_correct = sum(1 for a in answers.values() if a["correct"])
+        avg_time = 0.0
+        if n_answers > 0:
+            avg_time = sum(a["time_taken"] for a in answers.values()) / n_answers
+        correct_rate = (n_correct / n_answers) if n_answers > 0 else 0.0
+        stat = {
+            "index": idx,
+            "text": q["text"],
+            "answers": n_answers,
+            "correct": n_correct,
+            "correct_rate": round(correct_rate, 4),
+            "avg_time": round(avg_time, 3),
+        }
+        q_stats.append(stat)
+        total_correct_all += n_correct
+        total_answers_all += n_answers
+        total_time_all += sum(a["time_taken"] for a in answers.values())
+        total_time_count += n_answers
+        if hardest is None or correct_rate < hardest["correct_rate"]:
+            hardest = stat
+
+    avg_response = (total_time_all / total_time_count) if total_time_count > 0 else 0.0
+    session_doc = {
+        "id": str(uuid.uuid4()),
+        "pin": pin,
+        "quiz_id": quiz["id"],
+        "quiz_title": quiz["title"],
+        "owner_id": quiz.get("owner_id"),
+        "started_at": r.get("started_at_iso") or now_iso(),
+        "ended_at": now_iso(),
+        "total_players": total_players,
+        "question_count": len(quiz["questions"]),
+        "avg_response_time": round(avg_response, 3),
+        "reconnects": r.get("reconnects", 0),
+        "hardest_question": hardest,
+        "question_stats": q_stats,
+        "leaderboard": leaderboard_of(r),
+    }
+    await db.sessions.insert_one({**session_doc})
+
+
+# ---------- Public API ----------
 @api_router.get("/")
 async def root():
     return {"message": "TriviaStream API"}
 
 
 @api_router.post("/quizzes")
-async def create_quiz(payload: QuizCreate):
+async def create_quiz(payload: QuizCreate, current_user=Depends(optional_current_user)):
     if not payload.title.strip():
         raise HTTPException(status_code=400, detail="Quiz title is required")
     if not payload.questions or len(payload.questions) == 0:
         raise HTTPException(status_code=400, detail="Add at least 1 question before creating a game")
 
+    # Also profanity-check title
+    w = profanity_word(payload.title)
+    if w:
+        raise HTTPException(status_code=400, detail=f"Quiz title contains inappropriate language ('{w}')")
+
     normalized_questions: List[Question] = []
     for i, q in enumerate(payload.questions):
-        if not q.text.strip():
-            raise HTTPException(status_code=400, detail=f"Question {i+1}: text is required")
-        if len(q.options) != 4:
-            raise HTTPException(status_code=400, detail=f"Question {i+1}: exactly 4 options are required")
-        for j, opt in enumerate(q.options):
-            if not opt.strip():
-                raise HTTPException(status_code=400, detail=f"Question {i+1}: option {j+1} is empty")
-        if q.correct_index < 0 or q.correct_index > 3:
-            raise HTTPException(status_code=400, detail=f"Question {i+1}: correct_index must be 0-3")
-        if q.time_limit < 5 or q.time_limit > 120:
-            raise HTTPException(status_code=400, detail=f"Question {i+1}: time_limit must be 5-120s")
+        _validate_question_payload(q, i)
         normalized_questions.append(Question(**q.model_dump()))
 
-    quiz = Quiz(title=payload.title.strip(), questions=normalized_questions)
+    quiz = Quiz(
+        title=payload.title.strip(),
+        questions=normalized_questions,
+        owner_id=(current_user["id"] if current_user else None),
+    )
     doc = quiz.model_dump()
     await db.quizzes.insert_one(doc)
     return quiz.model_dump()
+
+
+@api_router.get("/quizzes/mine")
+async def my_quizzes(current_user=Depends(get_current_user)):
+    docs = await db.quizzes.find(
+        {"owner_id": current_user["id"]}, {"_id": 0}
+    ).sort("created_at", -1).to_list(200)
+    return docs
 
 
 @api_router.get("/quizzes/{quiz_id}")
@@ -352,6 +464,17 @@ async def get_quiz(quiz_id: str):
     if not doc:
         raise HTTPException(status_code=404, detail="Quiz not found")
     return doc
+
+
+@api_router.delete("/quizzes/{quiz_id}")
+async def delete_quiz(quiz_id: str, current_user=Depends(get_current_user)):
+    doc = await db.quizzes.find_one({"id": quiz_id})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Quiz not found")
+    if doc.get("owner_id") != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Not the owner")
+    await db.quizzes.delete_one({"id": quiz_id})
+    return {"ok": True}
 
 
 @api_router.post("/rooms")
@@ -375,7 +498,8 @@ async def create_room(payload: CreateRoomRequest):
         "connections": {},
         "status": "lobby",
         "created_at": datetime.now(timezone.utc),
-        # Sprint 2 state
+        "started_at_iso": None,
+        "reconnects": 0,
         "current_index": -1,
         "question_id": None,
         "question_started_at": None,
@@ -408,7 +532,6 @@ async def join_room(pin: str, payload: JoinRoomRequest):
 
     if room["status"] != "lobby":
         raise HTTPException(status_code=409, detail="Game Already Started")
-
     if len(room["players"]) >= MAX_PLAYERS_PER_ROOM:
         raise HTTPException(status_code=409, detail="Room Full")
 
@@ -417,6 +540,8 @@ async def join_room(pin: str, payload: JoinRoomRequest):
         raise HTTPException(status_code=400, detail="Nickname is required")
     if len(nickname) > 20:
         raise HTTPException(status_code=400, detail="Nickname must be 20 characters or fewer")
+    if contains_profanity(nickname):
+        raise HTTPException(status_code=400, detail="Nickname contains inappropriate language")
 
     lower = nickname.lower()
     for p in room["players"].values():
@@ -456,6 +581,7 @@ async def start_room(pin: str, host_token: str):
     if len(room["players"]) == 0:
         raise HTTPException(status_code=400, detail="At least 1 player is required to start")
 
+    room["started_at_iso"] = now_iso()
     await broadcast_event(pin, {"type": "game_started", "data": {"pin": pin}})
     await start_question(pin)
     return {"status": rooms[pin]["status"]}
@@ -551,16 +677,8 @@ async def submit_answer(pin: str, payload: AnswerRequest):
 
     await broadcast_event(
         pin,
-        {
-            "type": "answer_received",
-            "data": {
-                "answers_received": len(answers_map),
-                "total_players": len(room["players"]),
-            },
-        },
+        {"type": "answer_received", "data": {"answers_received": len(answers_map), "total_players": len(room["players"])}},
     )
-
-    # If all players answered, end early
     if len(answers_map) >= len(room["players"]):
         await end_question(pin, room["question_id"])
 
@@ -572,6 +690,217 @@ async def submit_answer(pin: str, payload: AnswerRequest):
     }
 
 
+# ---------- Sessions & analytics ----------
+@api_router.get("/sessions/mine")
+async def my_sessions(current_user=Depends(get_current_user)):
+    docs = await db.sessions.find(
+        {"owner_id": current_user["id"]}, {"_id": 0}
+    ).sort("ended_at", -1).to_list(200)
+    return docs
+
+
+@api_router.get("/sessions/{session_id}")
+async def get_session(session_id: str, current_user=Depends(get_current_user)):
+    doc = await db.sessions.find_one({"id": session_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if doc.get("owner_id") != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Not the owner")
+    return doc
+
+
+@api_router.get("/sessions/{session_id}/report", response_class=PlainTextResponse)
+async def session_report(session_id: str, current_user=Depends(get_current_user)):
+    doc = await db.sessions.find_one({"id": session_id}, {"_id": 0})
+    if not doc:
+        raise HTTPException(status_code=404, detail="Session not found")
+    if doc.get("owner_id") != current_user["id"]:
+        raise HTTPException(status_code=403, detail="Not the owner")
+    buf = io.StringIO()
+    writer = csv.writer(buf)
+    writer.writerow(["Session", doc["id"], "Quiz", doc["quiz_title"], "PIN", doc["pin"]])
+    writer.writerow(["Ended", doc["ended_at"], "Players", doc["total_players"], "Questions", doc["question_count"]])
+    writer.writerow([])
+    writer.writerow(["Rank", "Nickname", "Points", "Streak"])
+    for row in doc.get("leaderboard", []):
+        writer.writerow([row["rank"], row["nickname"], row["points"], row["streak"]])
+    writer.writerow([])
+    writer.writerow(["Q#", "Text", "Answers", "Correct", "Correct%", "Avg time (s)"])
+    for s in doc.get("question_stats", []):
+        writer.writerow([s["index"] + 1, s["text"], s["answers"], s["correct"], round(s["correct_rate"] * 100, 1), s["avg_time"]])
+    return PlainTextResponse(
+        buf.getvalue(),
+        headers={"Content-Disposition": f"attachment; filename=session-{doc['pin']}.csv"},
+        media_type="text/csv",
+    )
+
+
+@api_router.get("/analytics/question-difficulty")
+async def question_difficulty(quiz_id: str, current_user=Depends(get_current_user)):
+    docs = await db.sessions.find(
+        {"quiz_id": quiz_id, "owner_id": current_user["id"]}, {"_id": 0, "question_stats": 1}
+    ).to_list(500)
+    agg: Dict[int, Dict] = {}
+    for d in docs:
+        for s in d.get("question_stats", []):
+            a = agg.setdefault(s["index"], {"index": s["index"], "text": s["text"], "answers": 0, "correct": 0, "avg_time_sum": 0.0, "avg_time_n": 0})
+            a["answers"] += s["answers"]
+            a["correct"] += s["correct"]
+            if s["answers"] > 0:
+                a["avg_time_sum"] += s["avg_time"]
+                a["avg_time_n"] += 1
+    out = []
+    for k in sorted(agg.keys()):
+        a = agg[k]
+        rate = (a["correct"] / a["answers"]) if a["answers"] > 0 else 0.0
+        avg_time = (a["avg_time_sum"] / a["avg_time_n"]) if a["avg_time_n"] > 0 else 0.0
+        out.append({"index": k, "text": a["text"], "answers": a["answers"], "correct": a["correct"], "correct_rate": round(rate, 4), "avg_time": round(avg_time, 3)})
+    return out
+
+
+# ---------- Question Bank Upload ----------
+def _parse_bank_rows(raw_bytes: bytes, filename: str):
+    """Return (rows, parse_error).  rows is a list of dicts."""
+    name = (filename or "").lower()
+    text = raw_bytes.decode("utf-8", errors="replace")
+    if name.endswith(".json"):
+        try:
+            parsed = json_lib.loads(text)
+            if isinstance(parsed, dict):
+                parsed = parsed.get("questions", [])
+            if not isinstance(parsed, list):
+                return None, "JSON must be a list of questions"
+            return parsed, None
+        except Exception as e:
+            return None, f"Invalid JSON: {e}"
+    # default: CSV
+    rows = []
+    reader = csv.DictReader(io.StringIO(text))
+    for row in reader:
+        rows.append({k.strip(): v for k, v in row.items() if k is not None})
+    return rows, None
+
+
+def _validate_bank_row(row: dict, row_number: int):
+    """Return (valid_question_dict, error_message)."""
+    def _get(*keys):
+        for k in keys:
+            if k in row and row[k] not in (None, ""):
+                return row[k]
+        return None
+
+    text = _get("text", "question", "question_text")
+    if not text:
+        return None, f"Row {row_number}: missing question text"
+    options = []
+    for i in range(1, 5):
+        opt = _get(f"option{i}", f"option_{i}", f"opt{i}", f"o{i}")
+        if opt is None:
+            return None, f"Row {row_number}: missing option{i}"
+        options.append(str(opt).strip())
+    if not all(o for o in options):
+        return None, f"Row {row_number}: empty option value"
+
+    correct = _get("correct_option", "correct", "correct_index", "answer")
+    if correct is None:
+        return None, f"Row {row_number}: missing correct_option field"
+    correct_str = str(correct).strip().lower()
+    correct_index = None
+    if correct_str.isdigit():
+        n = int(correct_str)
+        if 0 <= n <= 3:
+            correct_index = n
+        elif 1 <= n <= 4:
+            correct_index = n - 1
+    if correct_index is None:
+        # try matching by exact text
+        for i, o in enumerate(options):
+            if o.strip().lower() == correct_str:
+                correct_index = i
+                break
+    if correct_index is None:
+        return None, f"Row {row_number}: correct_option must be 1-4, 0-3, or match option text"
+
+    time_limit_raw = _get("time_limit", "time", "seconds")
+    time_limit = DEFAULT_TIME_LIMIT
+    if time_limit_raw is not None:
+        try:
+            time_limit = int(str(time_limit_raw))
+        except ValueError:
+            return None, f"Row {row_number}: time_limit must be an integer"
+        if time_limit < 5 or time_limit > 120:
+            return None, f"Row {row_number}: time_limit must be 5-120 seconds"
+
+    # profanity check
+    for chunk in [text] + options:
+        w = profanity_word(str(chunk))
+        if w:
+            return None, f"Row {row_number}: contains inappropriate language ('{w}')"
+
+    return {
+        "text": str(text).strip(),
+        "options": options,
+        "correct_index": correct_index,
+        "time_limit": time_limit,
+    }, None
+
+
+@api_router.post("/question-bank/upload")
+async def upload_bank(file: UploadFile = File(...), current_user=Depends(get_current_user)):
+    raw = await file.read()
+    if not raw:
+        raise HTTPException(status_code=400, detail="Empty file")
+    rows, err = _parse_bank_rows(raw, file.filename or "")
+    if err:
+        raise HTTPException(status_code=400, detail=err)
+    valid = []
+    errors = []
+    for i, row in enumerate(rows):
+        q, e = _validate_bank_row(row or {}, i + 1)
+        if q:
+            valid.append(q)
+        else:
+            errors.append(e)
+    return {
+        "total_rows": len(rows),
+        "valid_count": len(valid),
+        "error_count": len(errors),
+        "valid_rows": valid,
+        "errors": errors,
+    }
+
+
+@api_router.post("/question-bank/import")
+async def import_bank(payload: ImportBankRequest, current_user=Depends(get_current_user)):
+    if not payload.title.strip():
+        raise HTTPException(status_code=400, detail="Quiz title is required")
+    if not payload.questions:
+        raise HTTPException(status_code=400, detail="Nothing to import")
+    normalized: List[Question] = []
+    for i, q in enumerate(payload.questions):
+        _validate_question_payload(q, i)
+        normalized.append(Question(**q.model_dump()))
+    quiz = Quiz(title=payload.title.strip(), questions=normalized, owner_id=current_user["id"])
+    await db.quizzes.insert_one(quiz.model_dump())
+    return quiz.model_dump()
+
+
+# ---------- Settings ----------
+@api_router.get("/settings")
+async def get_settings(current_user=Depends(get_current_user)):
+    doc = await db.settings.find_one({"owner_id": current_user["id"]}, {"_id": 0})
+    if not doc:
+        return {"owner_id": current_user["id"], "retention_days": DEFAULT_RETENTION_DAYS}
+    return doc
+
+
+@api_router.put("/settings")
+async def update_settings(payload: SettingsIn, current_user=Depends(get_current_user)):
+    doc = {"owner_id": current_user["id"], "retention_days": payload.retention_days, "updated_at": now_iso()}
+    await db.settings.update_one({"owner_id": current_user["id"]}, {"$set": doc}, upsert=True)
+    return doc
+
+
 # ---------- WebSockets ----------
 async def _host_promotion_task(pin: str):
     try:
@@ -579,35 +908,27 @@ async def _host_promotion_task(pin: str):
         r = rooms.get(pin)
         if not r or r.get("host_ws") is not None:
             return
-        # promote first connected player
         candidate_id = None
         for pid, p in r["players"].items():
             if p.get("connected"):
                 candidate_id = pid
                 break
         if candidate_id is None:
-            # nobody to promote — end game
             await end_game(pin)
             return
         new_host_token = str(uuid.uuid4())
         new_host_id = str(uuid.uuid4())
         old_ws = r["connections"].pop(candidate_id, None)
         promoted_nick = r["players"][candidate_id]["nickname"]
-        # remove candidate from players
         r["players"].pop(candidate_id, None)
         r["scores"].pop(candidate_id, None)
         r["host_token"] = new_host_token
         r["host_id"] = new_host_id
-        # notify promoted player
         if old_ws is not None:
             try:
                 await old_ws.send_json({
                     "type": "promoted_to_host",
-                    "data": {
-                        "pin": pin,
-                        "host_token": new_host_token,
-                        "host_id": new_host_id,
-                    },
+                    "data": {"pin": pin, "host_token": new_host_token, "host_id": new_host_id},
                 })
             except Exception:
                 pass
@@ -633,7 +954,6 @@ async def ws_room(websocket: WebSocket, pin: str, role: str = "player", token: s
             await websocket.send_json({"type": "error", "data": {"message": "Invalid host token"}})
             await websocket.close()
             return
-        # cancel any pending promotion
         prev_task = room.get("host_promote_task")
         if prev_task and not prev_task.done():
             prev_task.cancel()
@@ -655,7 +975,7 @@ async def ws_room(websocket: WebSocket, pin: str, role: str = "player", token: s
                     r["host_promote_task"] = asyncio.create_task(_host_promotion_task(pin))
         return
 
-    # player role — token can be player_id or session_token
+    # player role
     player = None
     if token in room["players"]:
         player = room["players"][token]
@@ -670,8 +990,11 @@ async def ws_room(websocket: WebSocket, pin: str, role: str = "player", token: s
         return
 
     player_id = player["id"]
+    was_previously_connected = player.get("connected")
     player["connected"] = True
     room["connections"][player_id] = websocket
+    if was_previously_connected:
+        room["reconnects"] = room.get("reconnects", 0) + 1
     await broadcast_room_state(pin)
 
     try:
@@ -686,12 +1009,12 @@ async def ws_room(websocket: WebSocket, pin: str, role: str = "player", token: s
         if rooms.get(pin):
             if rooms[pin]["connections"].get(player_id) is websocket:
                 rooms[pin]["connections"].pop(player_id, None)
-            if player_id in rooms[pin]["players"]:
-                rooms[pin]["players"][player_id]["connected"] = False
-            await broadcast_room_state(pin)
+                if player_id in rooms[pin]["players"]:
+                    rooms[pin]["players"][player_id]["connected"] = False
+                await broadcast_room_state(pin)
 
 
-# ---------- Room cleanup ----------
+# ---------- Room + retention cleanup ----------
 async def cleanup_rooms_task():
     while True:
         await asyncio.sleep(60 * 10)
@@ -706,11 +1029,28 @@ async def cleanup_rooms_task():
             logger.info("cleaned stale room %s", pin)
 
 
+async def retention_purge_task():
+    """Purge sessions per host-configured retention_days."""
+    while True:
+        await asyncio.sleep(60 * 60)  # hourly
+        try:
+            settings = await db.settings.find({}, {"_id": 0}).to_list(1000)
+            for s in settings:
+                days = int(s.get("retention_days", DEFAULT_RETENTION_DAYS))
+                cutoff = (datetime.now(timezone.utc) - timedelta(days=days)).isoformat()
+                await db.sessions.delete_many({"owner_id": s["owner_id"], "ended_at": {"$lt": cutoff}})
+        except Exception as e:
+            logger.exception("retention_purge_task failed: %s", e)
+
+
 @app.on_event("startup")
 async def start_bg():
+    await seed_admin(db)
     asyncio.create_task(cleanup_rooms_task())
+    asyncio.create_task(retention_purge_task())
 
 
+app.include_router(auth_router)
 app.include_router(api_router)
 
 app.add_middleware(

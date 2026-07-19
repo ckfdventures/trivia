@@ -1,5 +1,5 @@
 import React, { useState } from "react";
-import { useNavigate } from "react-router-dom";
+import { useNavigate, Link } from "react-router-dom";
 import { motion } from "framer-motion";
 import { ArrowRight, Confetti, GameController, Users, Trophy } from "@phosphor-icons/react";
 import { Logo } from "../components/Logo";
@@ -26,14 +26,15 @@ export default function Landing() {
       <header className="max-w-7xl mx-auto px-6 md:px-10 py-6 flex items-center justify-between">
         <Logo />
         <div className="hidden sm:flex items-center gap-6 text-sm font-semibold text-indigo-950/80">
-          <span>How it works</span>
-          <span>Templates</span>
+          <Link to="/login" data-testid="nav-signin-btn" className="hover:text-indigo-950">
+            Sign in
+          </Link>
           <button
             data-testid="nav-host-btn"
-            onClick={() => navigate("/host/create")}
+            onClick={() => navigate("/dashboard/games")}
             className="rounded-full bg-indigo-950 text-white px-5 py-2 hover:bg-indigo-900"
           >
-            Host a game
+            Dashboard
           </button>
         </div>
       </header>
