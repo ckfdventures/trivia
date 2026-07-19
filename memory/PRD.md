@@ -47,28 +47,25 @@ Real-time, PIN-based multiplayer trivia platform. Hosts create quizzes and run l
 
 ## What's Been Implemented (dated)
 - 2026-02: Sprint 1 complete — backend endpoints, WS layer, all frontend screens + error blockers, TTL cleanup.
+- 2026-02: Sprint 2 complete — server-authoritative timer, atomic answer submission, scoring engine (basePoints=1000 + 100/prev-streak bonus), tie-break by cumulative response time, question reveal with distribution, Top-5 leaderboard with tie badges, host controls (Next/Skip/Show Leaderboard/End Game modal), reconnecting overlay, host auto-promotion (20s grace), player disconnect resume, per-player feedback (correct/incorrect + rank). Game-over podium (top 3 stage) landed as part of Sprint 2 to close the loop even though full podium screen is Sprint 3.
 
 ## Prioritized Backlog
 
-### P0 (next up — Sprint 2)
-- Server-authoritative question timer
-- Live question host & player views (colored answer tiles)
-- Atomic answer submission
-- Scoring engine (basePoints * (1 - timeTaken/timeLimit) + streak bonus)
-- Time's Up / Reveal + per-option distribution
-- Real-time leaderboard (Top 5, TIE badges)
-- Host live controls (Next, Skip, Show Leaderboard, End Game Early + modal)
-- Player disconnect handling (retain score, resume on reconnect)
-- Host disconnect → auto-promote next player
-
-### P1 (Sprint 3)
+### P0 (next up — Sprint 3)
 - Host email/password JWT auth + dashboard sidebar (My Games, Reports, Discover, Marketplace, Settings)
-- Question bank upload (CSV/JSON drag-drop) + row-level validation
+- Session Expired modal (dashboard-level, live game unaffected)
+- Question bank upload (CSV/JSON drag-drop) + row-level validation summary + "Import Valid Rows"
 - Nickname & question text profanity filter (local wordlist)
-- Final results/podium screen, Session Summary Analytics, Download Report
+- Full Podium/Final Results screen (1st/2nd/3rd, Play Again, End Game)
+- Session Summary Analytics (total players, questions, avg response, reconnects, hardest questions bar chart, Download Report)
 - Per-question difficulty analytics endpoint
 - Accessibility pass (keyboard nav; colorblind shapes already done)
 - Configurable data retention policy
+
+### P1
+- Server WS reconnect with exponential backoff
+- Retain promoted player's score in leaderboard (currently player entry is removed on promotion)
+- Split-context host+multi-player analytics dashboard
 
 ### P2
 - Marketplace/Discover pages (Sprint 3 confirms placeholder)
