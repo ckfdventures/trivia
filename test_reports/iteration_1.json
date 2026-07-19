@@ -1,0 +1,57 @@
+{
+  "summary": "Sprint 1 full-stack test (backend pytest + Playwright UI). 22/22 backend tests pass. UI flows for landing PIN validation, host quiz builder, host lobby PIN display, real-time player join via WebSocket, player join flow, duplicate nickname error, and blocker screens (not-found, already-started) all pass. Found one real integration bug: after the host clicks Start Game, backend correctly moves the room to in_progress but never broadcasts a fresh room_state — only a game_started event — so the host UI never shows host-in-progress-banner and Start Game button remains active. Player lobby will have same issue (player-game-started-banner).",
+  "backend_issues": {
+    "critical": [],
+    "minor": [
+      {
+        "endpoint": "POST /api/rooms/{pin}/start",
+        "issue": "After setting status='in_progress', backend broadcasts only {type:'game_started'} to sockets. It should also broadcast an updated room_state so connected host/player UIs update. Add `await broadcast_room_state(pin)` after status transition (before or after the game_started event)."
+      }
+    ]
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "HostLobby",
+        "issue": "host-in-progress-banner never renders because state.status stays 'lobby' — WS only receives game_started event which useRoomSocket ignores for state updates. Same issue with PlayerLobby's player-game-started-banner. Root cause is backend (broadcast_room_state not called on start), but a defensive frontend fix would be to handle 'game_started' in useRoomSocket and merge status:'in_progress' into state.",
+        "selector": "[data-testid='host-in-progress-banner']",
+        "priority": "HIGH"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Host Start Game -> in-progress UI",
+        "issue": "Backend status transitions correctly (GET /api/rooms/{pin} returns status='in_progress'; late-joiners get 409 Game Already Started), but WS clients (host + players already in lobby) never learn about the transition because only a game_started event is emitted, no room_state broadcast.",
+        "affected_selectors": ["[data-testid='host-in-progress-banner']", "[data-testid='player-game-started-banner']", "[data-testid='host-start-btn']"]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/pytest.ini",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "In /app/backend/server.py `start_room`, call `await broadcast_room_state(pin)` after setting `room['status']='in_progress'` (either before or immediately after `broadcast_event(... game_started ...)`). This will cause HostLobby to render host-in-progress-banner and PlayerLobby to render player-game-started-banner via existing state.status check."
+  ],
+  "critical_code_review_comments": [
+    "server.py: start_room emits only 'game_started' event; downstream WS clients rely on 'room_state' to update status. Either also broadcast room_state or teach useRoomSocket.js to patch state on game_started.",
+    "server.py:189 quiz fetch inside create_room uses .find_one with projection {_id:0} — good, no ObjectId leak.",
+    "In-memory rooms dict: on WebSocket accept for a room that doesn't exist, we call websocket.accept() then send an error and close — fine, but consider using close code 4404 instead of the default 1000.",
+    "useRoomSocket.js: exponential backoff would be better than fixed 1500ms reconnect if backend hiccups.",
+    "PlayerJoin.jsx pre-validation currently only fires when arriving with a URL PIN — if a user types the PIN via step 1, room_full/already_started are only surfaced on submit. Acceptable for Sprint 1 but worth flagging.",
+    "QuizBuilder <select><option> render triggers a React hydration warning ('span cannot be a child of option') coming from the templating instrumentation (x-source-* attrs) wrapping option contents in a <span>. Not a functional bug — visible only in console — but noisy."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py (new)",
+    "/app/backend/tests/pytest.ini (new)"
+  ],
+  "success_rate": {"backend": "100%", "frontend": "~90% (1 integration bug blocks in-progress banner)"},
+  "test_credentials": "N/A - no auth in Sprint 1",
+  "seed_data_creation": "Ephemeral: quizzes prefixed TEST_ persisted in MongoDB; rooms are in-memory and TTL 3h. No cleanup necessary.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend pytest suite at /app/backend/tests/backend_test.py (run: cd /app/backend/tests && pytest -v). After main agent adds broadcast_room_state(pin) call in start_room, re-run the UI script asserting host-in-progress-banner and player-game-started-banner appear within a few seconds of clicking Start Game. All 22 existing backend tests should still pass.",
+  "rca of the issue": "start_room in /app/backend/server.py sets room['status']='in_progress' then calls broadcast_event with type='game_started'. It does NOT broadcast an updated room_state, so any host/player WebSocket already connected keeps its cached state (status='lobby'). Since HostLobby renders host-in-progress-banner only when state?.status === 'in_progress' and PlayerLobby likewise for player-game-started-banner, they never render. Late REST joiners are correctly rejected (Game Already Started) because that path re-reads the in-memory dict. FIX: add `await broadcast_room_state(pin)` immediately after the status flip in start_room; alternatively/additionally, handle 'game_started' in frontend useRoomSocket by merging {status:'in_progress'} into state."
+}
