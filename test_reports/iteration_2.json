@@ -1,0 +1,68 @@
+{
+  "summary": "Sprint 2 backend + frontend testing. All 26 pytest tests pass — every backend spec in the review request works correctly (question_active payload, /answer scoring + validation, atomic duplicate 409, stale question 409, invalid option 400, wrong session 403, all-players-answered auto-review, timer-expiry auto-review with streak reset, review payload with distribution + player_results, leaderboard tie flag, /next advance + game_over on last, /skip immediate review, /end at any time, invalid-token 403 on /next /skip /end, WS state broadcasts across question_active -> question_review -> game_over). The host UI Sprint 2 flow also works: HostLobby auto-navigates to /host/game/:pin, host-question-text/host-timer/host-answers-received/host-option-* all render, host-skip-btn / host-show-leaderboard-btn / host-next-btn / host-end-btn+modal all wired up. HOWEVER, the player-side UI is completely broken by a JS crash in PlayerGame.jsx that blanks the page whenever the player-game route mounts before its first WS room_state arrives. This blocks every player-side testid (player-answer-*, player-locked-in, player-feedback-*, player-mini-leaderboard, player-game-over).",
+  "backend_issues": {
+    "critical": [],
+    "minor": []
+  },
+  "frontend_issues": {
+    "ui_bugs": [
+      {
+        "component": "PlayerGame.jsx",
+        "issue": "JS TypeError 'Cannot read properties of null (reading \"index\")' crashes the entire page for every player. On mount, `state` (and thus `q`) is null until the first WS room_state arrives. The line `const mySelection = selectedForQid?.qid === q?.id ? selectedForQid.index : null;` evaluates `undefined === undefined` -> true, then dereferences `selectedForQid.index` on null. The page ends up blank white, so player-answer-*, player-locked-in, player-feedback-correct/incorrect, player-mini-leaderboard, player-game-over ALL never render. Auto-navigation from PlayerLobby to /play/:pin/game does happen (URL changes) but the resulting page is unusable.",
+        "selector": "PlayerGame.jsx line 77",
+        "priority": "CRITICAL"
+      }
+    ],
+    "integration_issues": [
+      {
+        "flow": "Player game-play (Sprint 2 end-to-end)",
+        "issue": "Because PlayerGame crashes on mount, none of the player-side integrations can be verified through the UI: submitting an answer via tapping player-answer-N, locked-in view, correct/incorrect feedback with points, mini leaderboard, promoted-modal, and player-game-over. Backend endpoints themselves work (pytest passes), so the crash is purely a client-side render bug.",
+        "affected_selectors": [
+          "[data-testid=\"player-answer-0\"]",
+          "[data-testid=\"player-answer-1\"]",
+          "[data-testid=\"player-answer-2\"]",
+          "[data-testid=\"player-answer-3\"]",
+          "[data-testid=\"player-locked-in\"]",
+          "[data-testid=\"player-feedback-correct\"]",
+          "[data-testid=\"player-feedback-incorrect\"]",
+          "[data-testid=\"player-mini-leaderboard\"]",
+          "[data-testid=\"player-game-over\"]"
+        ]
+      }
+    ],
+    "design_issues": []
+  },
+  "test_report_links": [
+    "/app/backend/tests/backend_test.py",
+    "/app/backend/tests/pytest.ini",
+    "/app/test_reports/pytest/pytest_results.xml"
+  ],
+  "action_items": [
+    "Fix PlayerGame.jsx line 77: guard both `selectedForQid` and `q`. E.g. change to `const mySelection = (q && selectedForQid && selectedForQid.qid === q.id) ? selectedForQid.index : null;` (or add a `selectedForQid && ` prefix). After fix, retest player-answer tap -> player-locked-in, review feedback (player-feedback-correct/incorrect), player-mini-leaderboard, and player-game-over flow.",
+    "After the PlayerGame fix, verify the immutability rule: once a player is in the player-locked-in view, further taps must NOT change the selection (currently unreachable due to crash)."
+  ],
+  "critical_code_review_comments": [
+    "PlayerGame.jsx:77 — buggy optional chaining logic. `undefined === undefined` is true, so when both selectedForQid and q are null the code dereferences null.index. This is the sole client-side blocker for Sprint 2 player UI.",
+    "server.py `_host_promotion_task` removes the promoted player from `room['players']` and `room['scores']` before promotion. Their contributions (correct answers, points) disappear from the leaderboard mid-game — this contradicts the spec 'retain score, resume on reconnect' and the 'auto-promote' step. Consider keeping the player entry (or copying their score to a new host record) rather than deleting.",
+    "server.py: broadcast_room_state fires directly from ws finally on player disconnect and from host_promotion_task etc. — good. But `submit_answer` mutates `score['cumulative_time']` even when the answer is wrong; leaderboard tie-break by cumulative_time then favors people who guess slowly-and-wrong (their cumulative_time is high, meaning they tie-break WORSE). Actually that's the desired behavior. OK.",
+    "server.py: `end_question` unconditionally resets streak=0 for non-answerers even in question_review timer expiry, which is per spec. Good.",
+    "PlayerGame.jsx `q.index + 1` at line 150 is safe because it's gated by `state?.status === 'question_active' && q`, so no crash there.",
+    "useRoomSocket.js: retries with fixed 1500ms interval — cheap but works for our tests. No exponential backoff yet.",
+    "HostGame.jsx: `host-question-text` testid is applied both to the active question card AND the review card (two elements share the same testid). Playwright's inner_text works for the first match but this is a code-smell — split into e.g. host-review-question-text.",
+    "server.py: /next reject-invalid-token path only exercised when room is in question_review or lobby (there is a 409 for other statuses evaluated BEFORE the token check). So an invalid token during question_active returns 409 rather than 403 — but the spec says invalid host_token must always be 403. Consider reordering the checks.",
+    "server.py: response of `submit_answer` returns 200 with points_earned even after a duplicate causes 409 on the second call — behavior is correct but the docs+tests should be explicit."
+  ],
+  "updated_files": [
+    "/app/backend/tests/backend_test.py (expanded to 26 tests covering Sprint 1 + Sprint 2)"
+  ],
+  "success_rate": {
+    "backend": "100% (26/26 pytest)",
+    "frontend": "~55% (host UI Sprint 2 works end-to-end; player UI completely broken by PlayerGame.jsx crash)"
+  },
+  "test_credentials": "N/A - no auth",
+  "seed_data_creation": "Ephemeral TEST_-prefixed quizzes stored in Mongo; rooms are in-memory with 3h TTL. No manual cleanup needed.",
+  "retest_needed": true,
+  "main_agent_can_self_test": true,
+  "context_for_next_testing_agent": "Backend pytest at /app/backend/tests/backend_test.py (`cd /app/backend/tests && pytest -v`). Sprint 2 backend is fully green. Frontend: after main agent fixes PlayerGame.jsx line 77 to properly guard `selectedForQid` and `q`, rerun a two-context Playwright flow: create quiz+room via REST, seed host session in localStorage and load /host/lobby/pin, seed player sessions in localStorage and load /play/pin/lobby, click host-start-btn, then on player pages assert player-answer-0..3 visible, click one to lock-in, verify player-locked-in and immutability, then assert the review path (player-feedback-correct/incorrect + player-mini-leaderboard). Host-side controls (host-skip-btn, host-show-leaderboard-btn, host-next-btn, host-end-btn+modal cancel+confirm, finish-game label on last review, host-game-over, leaderboard-row-0..4) were all verified to render — but the player-answered auto-review path could not be exercised because players never render tiles. After fix, verifying that also verifies the /answer flow through the UI.",
+  "rca of the issue": "PlayerGame.jsx line 77 reads `const mySelection = selectedForQid?.qid === q?.id ? selectedForQid.index : null;`. When PlayerGame mounts, `state` is null (no WS message yet), so `q = state?.question` is undefined, and `selectedForQid` is null. The ternary condition becomes `undefined === undefined` -> true, so the true-branch runs and dereferences `selectedForQid.index` on null, throwing 'Cannot read properties of null (reading \"index\")'. React unmounts the tree; browser shows a blank page. Because the WS effect never re-mounts (the component is dead), the room_state arrives but is not rendered. Reproduction: create a room, start it via API, then navigate directly to /play/:pin/game with a valid ts_player_{pin} session in localStorage — page renders blank and console shows the error. Fix: change to `const mySelection = q && selectedForQid && selectedForQid.qid === q.id ? selectedForQid.index : null;` (or wrap the whole thing in a null-check for both variables)."
+}

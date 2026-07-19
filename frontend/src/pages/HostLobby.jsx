@@ -23,7 +23,7 @@ export default function HostLobby() {
     setSession(JSON.parse(raw));
   }, [pin, navigate]);
 
-  const { connected, state, lastEvent } = useRoomSocket({
+  const { connected, state } = useRoomSocket({
     pin,
     role: "host",
     token: session?.host_token,
@@ -31,12 +31,11 @@ export default function HostLobby() {
   });
 
   useEffect(() => {
-    // no-op: room state is updated via socket; when in_progress starts we
-    // could navigate to /host/game/:pin in a future sprint
-    if (lastEvent?.type === "game_started") {
-      // Sprint 2 will handle live gameplay screens
+    // Navigate to game view once host has started the round
+    if (state?.status && state.status !== "lobby") {
+      navigate(`/host/game/${pin}`);
     }
-  }, [lastEvent]);
+  }, [state?.status, navigate, pin]);
 
   const players = state?.players || [];
 

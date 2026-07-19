@@ -7,6 +7,7 @@ import logging
 import random
 import string
 import asyncio
+import time
 from pathlib import Path
 from pydantic import BaseModel, Field
 from typing import List, Optional, Dict
@@ -27,7 +28,10 @@ api_router = APIRouter(prefix="/api")
 # ---------- Constants ----------
 MAX_PLAYERS_PER_ROOM = 50
 DEFAULT_TIME_LIMIT = 20
-ROOM_TTL_SECONDS = 3 * 60 * 60  # 3 hours
+ROOM_TTL_SECONDS = 3 * 60 * 60
+BASE_POINTS = 1000
+STREAK_BONUS_STEP = 100
+HOST_PROMOTION_GRACE_SECONDS = 20
 
 logging.basicConfig(level=logging.INFO, format='%(asctime)s - %(name)s - %(levelname)s - %(message)s')
 logger = logging.getLogger(__name__)
@@ -36,8 +40,8 @@ logger = logging.getLogger(__name__)
 # ---------- Models ----------
 class QuestionIn(BaseModel):
     text: str
-    options: List[str]  # exactly 4
-    correct_index: int  # 0..3
+    options: List[str]
+    correct_index: int
     time_limit: int = DEFAULT_TIME_LIMIT
 
 
@@ -69,16 +73,19 @@ class JoinRoomRequest(BaseModel):
     nickname: str
 
 
-class Player(BaseModel):
-    id: str
-    nickname: str
-    connected: bool = False
-    joined_at: str
+class AnswerRequest(BaseModel):
+    player_id: str
+    session_token: str
+    question_id: str
+    option_index: int
 
 
 # ---------- In-memory state ----------
-# rooms[pin] = {quiz, host_token, players: {player_id: Player}, status, created_at, connections: {player_id: WebSocket}, host_ws: WebSocket, host_id}
 rooms: Dict[str, Dict] = {}
+
+
+def now_ms() -> int:
+    return int(time.time() * 1000)
 
 
 def generate_pin() -> str:
@@ -92,33 +99,109 @@ def now_iso() -> str:
     return datetime.now(timezone.utc).isoformat()
 
 
+def leaderboard_of(room: dict) -> list:
+    scores = room["scores"]
+    entries = []
+    for p in room["players"].values():
+        s = scores.get(p["id"], {"points": 0, "streak": 0, "cumulative_time": 0.0})
+        entries.append({
+            "player_id": p["id"],
+            "nickname": p["nickname"],
+            "points": s["points"],
+            "streak": s["streak"],
+            "cumulative_time": s["cumulative_time"],
+        })
+    # sort by -points, then cumulative_time ASC (faster is better)
+    entries.sort(key=lambda e: (-e["points"], e["cumulative_time"]))
+    # add rank and tie flags
+    prev_points = None
+    rank = 0
+    for i, e in enumerate(entries):
+        if e["points"] != prev_points:
+            rank = i + 1
+            prev_points = e["points"]
+        e["rank"] = rank
+    points_counts = {}
+    for e in entries:
+        points_counts[e["points"]] = points_counts.get(e["points"], 0) + 1
+    for e in entries:
+        e["tie"] = points_counts[e["points"]] > 1 and e["points"] > 0
+    return entries
+
+
 def public_room_state(pin: str) -> dict:
     r = rooms[pin]
-    return {
+    q = current_question(r)
+    payload = {
         "pin": pin,
         "status": r["status"],
         "quiz_title": r["quiz"]["title"],
         "question_count": len(r["quiz"]["questions"]),
+        "current_index": r["current_index"],
         "players": [
             {"id": p["id"], "nickname": p["nickname"], "connected": p["connected"]}
             for p in r["players"].values()
         ],
         "max_players": MAX_PLAYERS_PER_ROOM,
+        "leaderboard": leaderboard_of(r),
     }
+    if r["status"] == "question_active" and q is not None:
+        payload["question"] = {
+            "id": r["question_id"],
+            "index": r["current_index"],
+            "text": q["text"],
+            "options": q["options"],
+            "time_limit": q["time_limit"],
+            "deadline_ts": r["deadline_ts"],
+            "server_now": now_ms(),
+            "answers_received": len(r["answers"].get(r["current_index"], {})),
+            "total_players": len(r["players"]),
+        }
+    if r["status"] == "question_review" and q is not None:
+        answers_map = r["answers"].get(r["current_index"], {})
+        distribution = [0, 0, 0, 0]
+        for a in answers_map.values():
+            if 0 <= a["option_index"] <= 3:
+                distribution[a["option_index"]] += 1
+        payload["review"] = {
+            "id": r["question_id"],
+            "index": r["current_index"],
+            "text": q["text"],
+            "options": q["options"],
+            "correct_index": q["correct_index"],
+            "distribution": distribution,
+            "answers_received": len(answers_map),
+            "total_players": len(r["players"]),
+            "is_last": r["current_index"] >= len(r["quiz"]["questions"]) - 1,
+            "player_results": {
+                pid: {
+                    "correct": a["correct"],
+                    "points_earned": a["points_earned"],
+                    "option_index": a["option_index"],
+                }
+                for pid, a in answers_map.items()
+            },
+        }
+    return payload
+
+
+def current_question(room: dict) -> Optional[dict]:
+    idx = room["current_index"]
+    if idx < 0 or idx >= len(room["quiz"]["questions"]):
+        return None
+    return room["quiz"]["questions"][idx]
 
 
 async def broadcast_room_state(pin: str):
     if pin not in rooms:
         return
     payload = {"type": "room_state", "data": public_room_state(pin)}
-    # Send to host
     host_ws = rooms[pin].get("host_ws")
     if host_ws is not None:
         try:
             await host_ws.send_json(payload)
         except Exception:
             rooms[pin]["host_ws"] = None
-    # Send to all player connections
     for pid, ws in list(rooms[pin].get("connections", {}).items()):
         try:
             await ws.send_json(payload)
@@ -140,6 +223,93 @@ async def broadcast_event(pin: str, event: dict):
             await ws.send_json(event)
         except Exception:
             rooms[pin]["connections"].pop(pid, None)
+
+
+async def send_to_player(pin: str, player_id: str, event: dict) -> bool:
+    ws = rooms.get(pin, {}).get("connections", {}).get(player_id)
+    if not ws:
+        return False
+    try:
+        await ws.send_json(event)
+        return True
+    except Exception:
+        rooms[pin]["connections"].pop(player_id, None)
+        return False
+
+
+# ---------- Question lifecycle ----------
+async def start_question(pin: str):
+    if pin not in rooms:
+        return
+    r = rooms[pin]
+    r["current_index"] += 1
+    if r["current_index"] >= len(r["quiz"]["questions"]):
+        await end_game(pin)
+        return
+    q = current_question(r)
+    r["question_id"] = str(uuid.uuid4())
+    r["question_started_at"] = now_ms()
+    r["deadline_ts"] = r["question_started_at"] + q["time_limit"] * 1000
+    r["status"] = "question_active"
+    r["answers"].setdefault(r["current_index"], {})
+
+    # cancel any previous timer task
+    prev_task = r.get("question_task")
+    if prev_task and not prev_task.done():
+        prev_task.cancel()
+
+    qid = r["question_id"]
+    r["question_task"] = asyncio.create_task(_question_timer(pin, qid, q["time_limit"]))
+    await broadcast_room_state(pin)
+
+
+async def _question_timer(pin: str, qid: str, seconds: int):
+    try:
+        await asyncio.sleep(seconds)
+        r = rooms.get(pin)
+        if not r:
+            return
+        if r["status"] == "question_active" and r["question_id"] == qid:
+            await end_question(pin, qid)
+    except asyncio.CancelledError:
+        return
+
+
+async def end_question(pin: str, qid: str):
+    r = rooms.get(pin)
+    if not r:
+        return
+    if r["question_id"] != qid or r["status"] != "question_active":
+        return
+
+    q = current_question(r)
+    if q is None:
+        return
+    answers_map = r["answers"].setdefault(r["current_index"], {})
+
+    # Score any player who didn't answer as incorrect (streak reset)
+    for pid in list(r["players"].keys()):
+        if pid not in answers_map:
+            s = r["scores"].setdefault(pid, {"points": 0, "streak": 0, "cumulative_time": 0.0})
+            s["streak"] = 0
+
+    r["status"] = "question_review"
+    # cancel timer if still scheduled
+    task = r.get("question_task")
+    if task and not task.done():
+        task.cancel()
+    await broadcast_room_state(pin)
+
+
+async def end_game(pin: str):
+    r = rooms.get(pin)
+    if not r:
+        return
+    r["status"] = "game_over"
+    task = r.get("question_task")
+    if task and not task.done():
+        task.cancel()
+    await broadcast_room_state(pin)
 
 
 # ---------- Routes ----------
@@ -203,8 +373,17 @@ async def create_room(payload: CreateRoomRequest):
         "host_ws": None,
         "players": {},
         "connections": {},
-        "status": "lobby",  # lobby | in_progress | game_over
+        "status": "lobby",
         "created_at": datetime.now(timezone.utc),
+        # Sprint 2 state
+        "current_index": -1,
+        "question_id": None,
+        "question_started_at": None,
+        "deadline_ts": None,
+        "answers": {},
+        "scores": {},
+        "question_task": None,
+        "host_promote_task": None,
     }
     return {
         "pin": pin,
@@ -239,7 +418,6 @@ async def join_room(pin: str, payload: JoinRoomRequest):
     if len(nickname) > 20:
         raise HTTPException(status_code=400, detail="Nickname must be 20 characters or fewer")
 
-    # case-insensitive uniqueness
     lower = nickname.lower()
     for p in room["players"].values():
         if p["nickname"].lower() == lower:
@@ -254,8 +432,8 @@ async def join_room(pin: str, payload: JoinRoomRequest):
         "session_token": session_token,
         "joined_at": now_iso(),
     }
+    room["scores"][player_id] = {"points": 0, "streak": 0, "cumulative_time": 0.0}
 
-    # broadcast update
     asyncio.create_task(broadcast_room_state(pin))
 
     return {
@@ -278,13 +456,168 @@ async def start_room(pin: str, host_token: str):
     if len(room["players"]) == 0:
         raise HTTPException(status_code=400, detail="At least 1 player is required to start")
 
-    room["status"] = "in_progress"
-    await broadcast_room_state(pin)
     await broadcast_event(pin, {"type": "game_started", "data": {"pin": pin}})
-    return {"status": "in_progress"}
+    await start_question(pin)
+    return {"status": rooms[pin]["status"]}
+
+
+@api_router.post("/rooms/{pin}/next")
+async def next_question(pin: str, host_token: str):
+    if pin not in rooms:
+        raise HTTPException(status_code=404, detail="Room not found")
+    room = rooms[pin]
+    if room["host_token"] != host_token:
+        raise HTTPException(status_code=403, detail="Invalid host token")
+    if room["status"] not in ("question_review", "lobby"):
+        raise HTTPException(status_code=409, detail=f"Cannot advance from status {room['status']}")
+    # If last question was answered, end game
+    if room["current_index"] >= len(room["quiz"]["questions"]) - 1 and room["status"] == "question_review":
+        await end_game(pin)
+        return {"status": rooms[pin]["status"]}
+    await start_question(pin)
+    return {"status": rooms[pin]["status"]}
+
+
+@api_router.post("/rooms/{pin}/skip")
+async def skip_question(pin: str, host_token: str):
+    if pin not in rooms:
+        raise HTTPException(status_code=404, detail="Room not found")
+    room = rooms[pin]
+    if room["host_token"] != host_token:
+        raise HTTPException(status_code=403, detail="Invalid host token")
+    if room["status"] != "question_active":
+        raise HTTPException(status_code=409, detail="No active question to skip")
+    await end_question(pin, room["question_id"])
+    return {"status": rooms[pin]["status"]}
+
+
+@api_router.post("/rooms/{pin}/end")
+async def end_game_early(pin: str, host_token: str):
+    if pin not in rooms:
+        raise HTTPException(status_code=404, detail="Room not found")
+    room = rooms[pin]
+    if room["host_token"] != host_token:
+        raise HTTPException(status_code=403, detail="Invalid host token")
+    await end_game(pin)
+    return {"status": rooms[pin]["status"]}
+
+
+@api_router.post("/rooms/{pin}/answer")
+async def submit_answer(pin: str, payload: AnswerRequest):
+    if pin not in rooms:
+        raise HTTPException(status_code=404, detail="Room not found")
+    room = rooms[pin]
+    player = room["players"].get(payload.player_id)
+    if not player or player["session_token"] != payload.session_token:
+        raise HTTPException(status_code=403, detail="Invalid player session")
+    if room["status"] != "question_active":
+        raise HTTPException(status_code=409, detail="No active question")
+    if room["question_id"] != payload.question_id:
+        raise HTTPException(status_code=409, detail="Stale question")
+    if payload.option_index < 0 or payload.option_index > 3:
+        raise HTTPException(status_code=400, detail="Invalid option")
+
+    q_idx = room["current_index"]
+    answers_map = room["answers"].setdefault(q_idx, {})
+    if payload.player_id in answers_map:
+        raise HTTPException(status_code=409, detail="Answer already submitted")
+
+    q = current_question(room)
+    time_taken_ms = now_ms() - room["question_started_at"]
+    time_taken_s = max(0.0, time_taken_ms / 1000.0)
+    time_limit_s = float(q["time_limit"])
+    correct = (payload.option_index == q["correct_index"])
+
+    score = room["scores"].setdefault(
+        payload.player_id, {"points": 0, "streak": 0, "cumulative_time": 0.0}
+    )
+    points_earned = 0
+    if correct:
+        base = int(round(BASE_POINTS * max(0.0, 1.0 - min(time_taken_s / time_limit_s, 1.0))))
+        streak_bonus = STREAK_BONUS_STEP * score["streak"]
+        points_earned = base + streak_bonus
+        score["streak"] += 1
+    else:
+        score["streak"] = 0
+    score["points"] += points_earned
+    score["cumulative_time"] += time_taken_s
+
+    answers_map[payload.player_id] = {
+        "option_index": payload.option_index,
+        "time_taken": time_taken_s,
+        "correct": correct,
+        "points_earned": points_earned,
+        "streak_after": score["streak"],
+    }
+
+    await broadcast_event(
+        pin,
+        {
+            "type": "answer_received",
+            "data": {
+                "answers_received": len(answers_map),
+                "total_players": len(room["players"]),
+            },
+        },
+    )
+
+    # If all players answered, end early
+    if len(answers_map) >= len(room["players"]):
+        await end_question(pin, room["question_id"])
+
+    return {
+        "correct": correct,
+        "points_earned": points_earned,
+        "streak": score["streak"],
+        "total_points": score["points"],
+    }
 
 
 # ---------- WebSockets ----------
+async def _host_promotion_task(pin: str):
+    try:
+        await asyncio.sleep(HOST_PROMOTION_GRACE_SECONDS)
+        r = rooms.get(pin)
+        if not r or r.get("host_ws") is not None:
+            return
+        # promote first connected player
+        candidate_id = None
+        for pid, p in r["players"].items():
+            if p.get("connected"):
+                candidate_id = pid
+                break
+        if candidate_id is None:
+            # nobody to promote — end game
+            await end_game(pin)
+            return
+        new_host_token = str(uuid.uuid4())
+        new_host_id = str(uuid.uuid4())
+        old_ws = r["connections"].pop(candidate_id, None)
+        promoted_nick = r["players"][candidate_id]["nickname"]
+        # remove candidate from players
+        r["players"].pop(candidate_id, None)
+        r["scores"].pop(candidate_id, None)
+        r["host_token"] = new_host_token
+        r["host_id"] = new_host_id
+        # notify promoted player
+        if old_ws is not None:
+            try:
+                await old_ws.send_json({
+                    "type": "promoted_to_host",
+                    "data": {
+                        "pin": pin,
+                        "host_token": new_host_token,
+                        "host_id": new_host_id,
+                    },
+                })
+            except Exception:
+                pass
+        await broadcast_event(pin, {"type": "host_changed", "data": {"nickname": promoted_nick}})
+        await broadcast_room_state(pin)
+    except asyncio.CancelledError:
+        return
+
+
 @app.websocket("/api/ws/rooms/{pin}")
 async def ws_room(websocket: WebSocket, pin: str, role: str = "player", token: str = ""):
     await websocket.accept()
@@ -301,25 +634,38 @@ async def ws_room(websocket: WebSocket, pin: str, role: str = "player", token: s
             await websocket.send_json({"type": "error", "data": {"message": "Invalid host token"}})
             await websocket.close()
             return
+        # cancel any pending promotion
+        prev_task = room.get("host_promote_task")
+        if prev_task and not prev_task.done():
+            prev_task.cancel()
+            room["host_promote_task"] = None
         room["host_ws"] = websocket
         try:
             await websocket.send_json({"type": "room_state", "data": public_room_state(pin)})
             while True:
-                # keep-alive; host currently doesn't send messages
                 await websocket.receive_text()
         except WebSocketDisconnect:
-            if rooms.get(pin) and rooms[pin].get("host_ws") is websocket:
-                rooms[pin]["host_ws"] = None
+            pass
         except Exception as e:
             logger.exception("host ws error: %s", e)
+        finally:
+            r = rooms.get(pin)
+            if r and r.get("host_ws") is websocket:
+                r["host_ws"] = None
+                if r["status"] not in ("game_over",):
+                    r["host_promote_task"] = asyncio.create_task(_host_promotion_task(pin))
         return
 
-    # player role
-    player = room["players"].get(token) or next(
-        (p for p in room["players"].values() if p.get("session_token") == token), None
-    )
+    # player role — token can be player_id or session_token
+    player = None
+    if token in room["players"]:
+        player = room["players"][token]
+    else:
+        for p in room["players"].values():
+            if p.get("session_token") == token:
+                player = p
+                break
     if not player:
-        # allow token to be player_id OR session_token
         await websocket.send_json({"type": "error", "data": {"message": "Player not found in room"}})
         await websocket.close()
         return
@@ -349,11 +695,15 @@ async def ws_room(websocket: WebSocket, pin: str, role: str = "player", token: s
 # ---------- Room cleanup ----------
 async def cleanup_rooms_task():
     while True:
-        await asyncio.sleep(60 * 10)  # every 10 minutes
+        await asyncio.sleep(60 * 10)
         cutoff = datetime.now(timezone.utc) - timedelta(seconds=ROOM_TTL_SECONDS)
         stale = [pin for pin, r in rooms.items() if r["created_at"] < cutoff]
         for pin in stale:
-            rooms.pop(pin, None)
+            r = rooms.pop(pin, None)
+            if r:
+                t = r.get("question_task")
+                if t and not t.done():
+                    t.cancel()
             logger.info("cleaned stale room %s", pin)
 
 

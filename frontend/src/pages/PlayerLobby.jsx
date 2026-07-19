@@ -26,6 +26,12 @@ export default function PlayerLobby() {
     enabled: !!session,
   });
 
+  useEffect(() => {
+    if (state?.status && state.status !== "lobby") {
+      navigate(`/play/${pin}/game`);
+    }
+  }, [state?.status, navigate, pin]);
+
   const players = state?.players || [];
 
   return (
