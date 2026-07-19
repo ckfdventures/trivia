@@ -1,0 +1,104 @@
+{
+  "project_context": {
+    "name": "TriviaStream",
+    "theme": "Energetic, game-showy, modern, accessible",
+    "mode": "hybrid",
+    "primary_persona": "Multiplayer live trivia participants (mobile) and hosts (desktop)"
+  },
+  "typography": {
+    "fonts": {
+      "display": "Clash Display, 'Outfit', sans-serif",
+      "body": "Nunito, 'Nunito Sans', sans-serif"
+    },
+    "scale": {
+      "h1": "text-5xl sm:text-6xl md:text-7xl font-black tracking-tighter uppercase",
+      "h2": "text-3xl sm:text-4xl font-black tracking-tight",
+      "h3": "text-xl sm:text-2xl font-bold",
+      "body": "text-base font-semibold leading-relaxed",
+      "pin_display": "text-[12vw] font-black tracking-widest leading-none text-white drop-shadow-[0_10px_10px_rgba(0,0,0,0.5)]"
+    },
+    "instructions": "DO NOT use Inter or Roboto. Emphasize wide, heavy fonts for headers to create a TV game show feel. All numeric PIN displays must be massive and highly contrasted."
+  },
+  "colors": {
+    "primary": {
+      "base": "#2E1065",
+      "hover": "#4C1D95",
+      "tailwind": "indigo-950 and indigo-900"
+    },
+    "surface": {
+      "light": "#FFFFFF",
+      "lavender": "#EDE9FE",
+      "lavender_dark": "#DDD6FE"
+    },
+    "accent": {
+      "peach": "#FFDAB9"
+    },
+    "game_tiles": {
+      "red_triangle": { "color": "#EF4444", "tailwind": "bg-red-500", "shape": "triangle" },
+      "blue_diamond": { "color": "#3B82F6", "tailwind": "bg-blue-500", "shape": "diamond" },
+      "yellow_circle": { "color": "#EAB308", "tailwind": "bg-yellow-500", "shape": "circle" },
+      "green_square": { "color": "#22C55E", "tailwind": "bg-green-500", "shape": "square" }
+    },
+    "instructions": "Use deep purple for backgrounds with lavender and peach accents for cards/surfaces. Game tiles MUST map exactly to the provided colors and integrate their respective shapes (CSS clip-path or SVGs) to ensure colorblind accessibility."
+  },
+  "visual_enhancers": {
+    "shadows": "Heavy, soft tinted shadows: shadow-[0_20px_50px_rgba(46,16,101,0.15)] for cards, and sharp pop-out shadows for buttons: shadow-[0_6px_0_#1e1b4b] to give a tactile arcade button feel.",
+    "borders": "Thick pill shapes for badges, massive rounded corners on cards (rounded-3xl or rounded-[2rem]).",
+    "surfaces": "Glassmorphism for floating UI elements over deep purple backgrounds (backdrop-blur-xl bg-white/10). Solid crisp white (bg-white) for question cards.",
+    "textures": "Use background image textures softly blended into the deep purple."
+  },
+  "layouts": {
+    "landing_page": "Bento Grid approach. Split screen or asymmetrical layout with the Hero Image on one side, and two distinct bold CTAs on the other (Host: Create Game, Player: Enter PIN).",
+    "host_lobby": "Massive 1-column header for PIN (text-[12vw]), followed by a dense, animated multi-column grid of player nickname pills. Background must be energetic with floating shapes or deep purple/lavender gradients.",
+    "quiz_builder": "High-density dashboard layout. Left rail for questions list, main center area for editing the active question. Form inputs should be chunky, friendly, and accessible.",
+    "player_mobile_join": "Strictly mobile-first. Massive touch targets. The PIN and Nickname entry screens should have input fields taking up 80% width with pill-shaped massive buttons (h-16).",
+    "player_waiting_room": "Immersive full-screen view with a pulsing/breathing animation on the 'You\\'re in!' text or background to keep the player engaged while waiting.",
+    "error_states": "Playful, full-screen takeover modal/pages with large typography ('Uh oh! Room Full') and an easy pill-shaped CTA to go back. No generic toast alerts for these core flow blocks."
+  },
+  "motion": {
+    "interactions": "Hover states on all buttons must scale up (scale-105) and increase shadow depth. Tapping a tile should have a swift 'press' down (active:translate-y-1 active:shadow-none).",
+    "page_transitions": "Player joining the lobby should trigger a subtle framer-motion pop-in animation on the host screen.",
+    "waiting_room": "Pulsing/breathing loop animation."
+  },
+  "components": {
+    "AnswerTile": "A massive interactive button component requiring props for color and shape. Render the shape prominently (SVG) inside the button. For mobile, the tile should take up 50% of the grid.",
+    "PlayerBadge": "A thick, pill-shaped badge (rounded-full bg-white/20 text-white backdrop-blur-md px-6 py-2) displaying the player's nickname.",
+    "GameInput": "Custom massive input field. text-center, rounded-2xl, thick border (focus:ring-4 focus:ring-accent-peach bg-white text-indigo-950 font-black text-3xl placeholder:text-gray-300 h-20)."
+  },
+  "media": {
+    "image_urls": {
+      "landing_hero": {
+        "url": "https://images.pexels.com/photos/9071723/pexels-photo-9071723.jpeg?auto=compress&cs=tinysrgb&dpr=2&h=650&w=940",
+        "category": "Hero Section",
+        "description": "Friends playing games on their phones. Place this in the hero section of the landing page to establish the social gaming context."
+      },
+      "background_texture": {
+        "url": "https://images.unsplash.com/photo-1672080070747-9b28b4b403af?crop=entropy&cs=srgb&fm=jpg&ixid=M3w3NDk1ODB8MHwxfHNlYXJjaHw0fHxhYnN0cmFjdCUyMDNkJTIwZmxvYXRpbmclMjBzaGFwZXMlMjBwdXJwbGV8ZW58MHx8fHwxNzgzNzg2ODQ1fDA&ixlib=rb-4.1.0&q=85",
+        "category": "Host Lobby / Waiting Room Background",
+        "description": "Abstract 3D floating purple glass shapes. Use as a heavily blurred/blended background image to give an energetic TV-show feel."
+      }
+    }
+  },
+  "instructions_to_main_agent": [
+    "Write the frontend using standard .js files, NOT .tsx (TypeScript).",
+    "You MUST NOT use 'Inter' or 'Roboto'. Import 'Clash Display' or 'Outfit' via fontsource for headings, and 'Nunito' for body text.",
+    "Use Phosphor Icons (@phosphor-icons/react) for UI icons (heavy/bold variants).",
+    "Answer tiles on the host screen and player mobile view MUST clearly depict a Red Triangle, Blue Diamond, Yellow Circle, and Green Square using clear, scalable SVGs.",
+    "Implement motion using framer-motion for smooth pop-ins and staggered lists when players join the lobby.",
+    "Ensure all interactable elements have data-testid attributes.",
+    "For the quiz builder, create a highly tactile form. Use Shadcn component structures but customize them completely to look like playful game UI."
+  ],
+  "UNIVERSAL_GUIDELINES_FOR_MAIN_AGENT": [
+    "You tend to converge toward generic, 'on distribution' outputs. In frontend design, this creates what users call the 'AI slop' aesthetic. Avoid this: make creative, distinctive frontends that surprise and delight.",
+    "Don't make generic centered layouts, simplistic gradients, and uniform styling. Create depth through layered design elements with z-index hierarchy.",
+    "Use glass-morphism effects with backdrop filters (12-24px blur).",
+    "You MUST NOT apply universal transition (e.g., transition: all). This results in breaking transforms. Always add transitions for specific interactive elements excluding transforms.",
+    "You MUST NOT center align the app container, i.e., do not add .App { text-align: center; } in the css file. This disrupts the human natural reading flow of text.",
+    "Always use modern button styles like pill-shaped, or sharp button with interaction animations & color relevant to the app style.",
+    "NEVER: use AI assistant Emoji characters like 🤖🧠💭💡🔮🎯 etc for icons.",
+    "Every interaction needs micro-animations - hover states, transitions, parallax effects, and entrance animations. Static = dead.",
+    "Use 2-3x more spacing than feels comfortable. Cramped designs look cheap.",
+    "Subtle grain textures, noise overlays, custom cursors, selection states, and loading animations: separates good from extraordinary.",
+    "All interactive and key informational elements MUST include a data-testid attribute to facilitate robust automated testing."
+  ]
+}
