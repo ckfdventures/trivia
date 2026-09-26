@@ -1,70 +1,49 @@
-# Getting Started with Create React App
+# TriviaStream web app
 
-This project was bootstrapped with [Create React App](https://github.com/facebook/create-react-app).
+Next.js (App Router) + TypeScript + Tailwind CSS. Talks to the API in [`../backend`](../backend) over
+REST and Socket.IO.
 
-## Available Scripts
+## Getting started
 
-In the project directory, you can run:
+```bash
+cp .env.example .env.local   # point NEXT_PUBLIC_BACKEND_URL at the API
+npm install
+npm run dev                  # http://localhost:3000
+```
 
-### `npm start`
+| Script | Purpose |
+| --- | --- |
+| `npm run dev` | Dev server with hot reload |
+| `npm run build` / `npm start` | Production build and server |
+| `npm run lint` / `npm run typecheck` | Static checks |
 
-Runs the app in the development mode.\
-Open [http://localhost:3000](http://localhost:3000) to view it in your browser.
+`NEXT_PUBLIC_BACKEND_URL` is inlined at build time, so set it before `npm run build`. The API's
+`CORS_ORIGINS` must include this app's origin.
 
-The page will reload when you make changes.\
-You may also see any lint errors in the console.
+## Structure
 
-### `npm test`
+```
+src/
+  app/          routes (thin server components that set the page title and render a screen)
+  screens/      page UIs — client components (players, hosts, admin)
+  components/   shared UI (logo, answer shapes, modals, admin layout)
+  hooks/        useRoomSocket (Socket.IO room state), useServerCountdown (server-synced timer)
+  lib/          API client, auth context, API types, navigation helpers
+```
 
-Launches the test runner in the interactive watch mode.\
-See the section about [running tests](https://facebook.github.io/create-react-app/docs/running-tests) for more information.
+| Route | Screen |
+| --- | --- |
+| `/` | Landing (join with a PIN; admin login link in the footer) |
+| `/host/create` → `/host/lobby/[pin]` → `/host/game/[pin]` | Pick a theme or Mix + question count, lobby with invite link, live game |
+| `/play`, `/play/[pin]` → `/play/[pin]/lobby` → `/play/[pin]/game` | Join by PIN/invite link, wait, play |
+| `/admin/login`, `/admin/themes`, `/admin/upload` | Owner sign-in, theme management, question-bank upload |
 
-### `npm run build`
+Game sessions (host token, player session token) are kept in `localStorage` per PIN, so a refresh
+or brief disconnect rejoins the same game.
 
-Builds the app for production to the `build` folder.\
-It correctly bundles React in production mode and optimizes the build for the best performance.
+## Design and mobile
 
-The build is minified and the filenames include the hashes.\
-Your app is ready to be deployed!
-
-See the section about [deployment](https://facebook.github.io/create-react-app/docs/deployment) for more information.
-
-### `npm run eject`
-
-**Note: this is a one-way operation. Once you `eject`, you can't go back!**
-
-If you aren't satisfied with the build tool and configuration choices, you can `eject` at any time. This command will remove the single build dependency from your project.
-
-Instead, it will copy all the configuration files and the transitive dependencies (webpack, Babel, ESLint, etc) right into your project so you have full control over them. All of the commands except `eject` will still work, but they will point to the copied scripts so you can tweak them. At this point you're on your own.
-
-You don't have to ever use `eject`. The curated feature set is suitable for small and middle deployments, and you shouldn't feel obligated to use this feature. However we understand that this tool wouldn't be useful if you couldn't customize it when you are ready for it.
-
-## Learn More
-
-You can learn more in the [Create React App documentation](https://facebook.github.io/create-react-app/docs/getting-started).
-
-To learn React, check out the [React documentation](https://reactjs.org/).
-
-### Code Splitting
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/code-splitting](https://facebook.github.io/create-react-app/docs/code-splitting)
-
-### Analyzing the Bundle Size
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size](https://facebook.github.io/create-react-app/docs/analyzing-the-bundle-size)
-
-### Making a Progressive Web App
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app](https://facebook.github.io/create-react-app/docs/making-a-progressive-web-app)
-
-### Advanced Configuration
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/advanced-configuration](https://facebook.github.io/create-react-app/docs/advanced-configuration)
-
-### Deployment
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/deployment](https://facebook.github.io/create-react-app/docs/deployment)
-
-### `npm run build` fails to minify
-
-This section has moved here: [https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify](https://facebook.github.io/create-react-app/docs/troubleshooting#npm-run-build-fails-to-minify)
+The visual language lives in `src/app/globals.css` (stage gradient, grain, arcade buttons, fonts:
+Outfit for display, Nunito for body) and Tailwind utility classes. Layouts are mobile-first: player
+screens are built for phones, host and admin screens adapt below the `sm`/`md` breakpoints, and the
+answer grid switches to a single row on short (landscape) screens.

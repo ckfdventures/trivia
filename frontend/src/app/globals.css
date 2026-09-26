@@ -1,0 +1,189 @@
+@import "@fontsource/outfit/400.css";
+@import "@fontsource/outfit/600.css";
+@import "@fontsource/outfit/700.css";
+@import "@fontsource/outfit/800.css";
+@import "@fontsource/outfit/900.css";
+@import "@fontsource/nunito/400.css";
+@import "@fontsource/nunito/600.css";
+@import "@fontsource/nunito/700.css";
+@import "@fontsource/nunito/800.css";
+
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+:root {
+    --ts-purple-950: #2E1065;
+    --ts-purple-900: #4C1D95;
+    --ts-purple-800: #5B21B6;
+    --ts-lavender: #EDE9FE;
+    --ts-lavender-dark: #DDD6FE;
+    --ts-peach: #FFDAB9;
+    --ts-peach-strong: #FBBF77;
+    --ts-red: #EF4444;
+    --ts-blue: #3B82F6;
+    --ts-yellow: #EAB308;
+    --ts-green: #22C55E;
+}
+
+html,
+body,
+#root {
+    height: 100%;
+}
+
+body {
+    margin: 0;
+    font-family: "Nunito", "Nunito Sans", ui-sans-serif, system-ui, sans-serif;
+    -webkit-font-smoothing: antialiased;
+    -moz-osx-font-smoothing: grayscale;
+    background: #FAF7FF;
+    color: #1E1B4B;
+}
+
+.font-display {
+    font-family: "Outfit", "Nunito", sans-serif;
+    letter-spacing: -0.02em;
+}
+
+/* Deep purple immersive background used on host/lobby/waiting */
+.bg-stage {
+    background:
+        radial-gradient(1200px 600px at 90% -10%, rgba(251, 191, 119, 0.18), transparent 60%),
+        radial-gradient(900px 500px at -10% 100%, rgba(221, 214, 254, 0.20), transparent 60%),
+        linear-gradient(180deg, #2E1065 0%, #1E1B4B 100%);
+    color: white;
+}
+
+/* Grain overlay */
+.grain::before {
+    content: "";
+    position: absolute;
+    inset: 0;
+    pointer-events: none;
+    opacity: 0.08;
+    background-image: url("data:image/svg+xml,%3Csvg viewBox='0 0 200 200' xmlns='http://www.w3.org/2000/svg'%3E%3Cfilter id='n'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='0.9' numOctaves='2' stitchTiles='stitch'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E");
+    mix-blend-mode: overlay;
+}
+
+/* Tactile arcade button shadow (peach primary) */
+.btn-arcade {
+    box-shadow: 0 6px 0 #7C2D12;
+    transition:
+        transform 120ms cubic-bezier(0.2, 0.8, 0.2, 1),
+        box-shadow 120ms cubic-bezier(0.2, 0.8, 0.2, 1),
+        background-color 120ms ease;
+}
+.btn-arcade:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 0 #7C2D12;
+}
+.btn-arcade:active {
+    transform: translateY(4px);
+    box-shadow: 0 2px 0 #7C2D12;
+}
+
+.btn-purple-3d {
+    box-shadow: 0 6px 0 #1e1b4b;
+    transition:
+        transform 120ms cubic-bezier(0.2, 0.8, 0.2, 1),
+        box-shadow 120ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.btn-purple-3d:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 0 #1e1b4b;
+}
+.btn-purple-3d:active {
+    transform: translateY(4px);
+    box-shadow: 0 2px 0 #1e1b4b;
+}
+
+/* Card w/ tinted purple shadow */
+.card-lift {
+    box-shadow: 0 20px 50px rgba(46, 16, 101, 0.15);
+}
+
+/* Pulsing "you're in" halo */
+@keyframes breathe {
+    0%,
+    100% {
+        transform: scale(1);
+        opacity: 0.85;
+    }
+    50% {
+        transform: scale(1.06);
+        opacity: 1;
+    }
+}
+.animate-breathe {
+    animation: breathe 2.6s ease-in-out infinite;
+}
+
+/* Floating shapes */
+@keyframes floaty {
+    0%,
+    100% {
+        transform: translateY(0) rotate(0);
+    }
+    50% {
+        transform: translateY(-14px) rotate(4deg);
+    }
+}
+.animate-floaty {
+    animation: floaty 6s ease-in-out infinite;
+}
+
+/* Selection */
+::selection {
+    background: #fbbf77;
+    color: #1e1b4b;
+}
+
+/* Custom cursor for CTAs */
+.cursor-arcade {
+    cursor: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='28' height='28' viewBox='0 0 24 24'><circle cx='12' cy='12' r='6' fill='%23FBBF77' stroke='%232E1065' stroke-width='2'/></svg>") 14 14, pointer;
+}
+
+@layer base {
+    :root {
+        --background: 0 0% 100%;
+        --foreground: 245 40% 15%;
+        --card: 0 0% 100%;
+        --card-foreground: 245 40% 15%;
+        --popover: 0 0% 100%;
+        --popover-foreground: 245 40% 15%;
+        --primary: 258 84% 22%;
+        --primary-foreground: 0 0% 98%;
+        --secondary: 255 92% 95%;
+        --secondary-foreground: 258 84% 22%;
+        --muted: 255 60% 96%;
+        --muted-foreground: 245 15% 42%;
+        --accent: 30 95% 72%;
+        --accent-foreground: 245 40% 15%;
+        --destructive: 0 84.2% 60.2%;
+        --destructive-foreground: 0 0% 98%;
+        --border: 255 25% 88%;
+        --input: 255 25% 88%;
+        --ring: 258 84% 40%;
+        --radius: 1rem;
+    }
+}
+
+@layer base {
+    * {
+        @apply border-border;
+    }
+    body {
+        @apply bg-background text-foreground;
+    }
+}
+
+/* Mobile: taps on controls fire immediately and never trigger double-tap zoom (e.g. rapid answer taps). */
+a,
+button,
+input,
+select,
+textarea,
+label {
+    touch-action: manipulation;
+}
