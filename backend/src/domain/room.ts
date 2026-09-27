@@ -1,4 +1,5 @@
 import type { QuestionInput } from "./models.js";
+import { createVoiceState, type VoiceState } from "./voice.js";
 
 export type RoomStatus = "lobby" | "question_active" | "question_review" | "game_over";
 
@@ -46,8 +47,6 @@ export interface Room {
   players: Map<string, Player>;
   /** The host's own player entry when the host plays along; their presence follows the host connection. */
   hostPlayerId: string | null;
-  /** Players who left the player list mid-game (promoted to host); their scores stay on the leaderboard. */
-  departedPlayers: Map<string, { nickname: string }>;
   connections: Map<string, RoomConnection>;
   status: RoomStatus;
   createdAt: Date;
@@ -60,6 +59,7 @@ export interface Room {
   scores: Map<string, PlayerScore>;
   questionTimer: NodeJS.Timeout | null;
   hostPromotionTimer: NodeJS.Timeout | null;
+  voice: VoiceState;
 }
 
 export function createRoom(params: { pin: string; quiz: GameQuiz; hostToken: string; hostId: string }): Room {
@@ -68,7 +68,6 @@ export function createRoom(params: { pin: string; quiz: GameQuiz; hostToken: str
     host: null,
     players: new Map(),
     hostPlayerId: null,
-    departedPlayers: new Map(),
     connections: new Map(),
     status: "lobby",
     createdAt: new Date(),
@@ -80,6 +79,7 @@ export function createRoom(params: { pin: string; quiz: GameQuiz; hostToken: str
     scores: new Map(),
     questionTimer: null,
     hostPromotionTimer: null,
+    voice: createVoiceState(),
   };
 }
 

@@ -7,6 +7,7 @@ import { MongoThemeRepository } from "./repositories/theme.repository.js";
 import { MongoUserRepository } from "./repositories/user.repository.js";
 import { AuthService } from "./services/auth.service.js";
 import { GameService } from "./services/game.service.js";
+import { CloudflareTurnIceServers, StunOnlyIceServers } from "./services/ice-servers.js";
 import { BcryptPasswordHasher } from "./services/password-hasher.js";
 import { PresenceService } from "./services/presence.service.js";
 import { WordListProfanityFilter } from "./services/profanity-filter.js";
@@ -17,6 +18,7 @@ import { RoomNotifier } from "./services/room-notifier.js";
 import { RoomStore } from "./services/room-store.js";
 import { ThemeService } from "./services/theme.service.js";
 import { JwtTokenService } from "./services/token-service.js";
+import { VoiceService } from "./services/voice.service.js";
 import type { Logger } from "./shared/logger.js";
 
 export interface ContainerOptions {
@@ -44,6 +46,10 @@ export function createContainer(config: AppConfig, db: Db, logger: Logger, optio
   const notifier = new RoomNotifier(roomStore);
   const gameService = new GameService(roomStore, notifier, themeService, profanity);
   const presence = new PresenceService(roomStore, notifier, gameService, logger, options.hostPromotionGraceMs);
+  const iceServers = config.turn
+    ? new CloudflareTurnIceServers(config.turn.keyId, config.turn.apiToken)
+    : new StunOnlyIceServers();
+  const voiceService = new VoiceService(roomStore, iceServers, logger);
 
   return {
     config,
@@ -56,6 +62,7 @@ export function createContainer(config: AppConfig, db: Db, logger: Logger, optio
     roomStore,
     gameService,
     presence,
+    voiceService,
     jobs: [new RoomCleanupJob(roomStore, gameService, logger)],
     /** One-time startup work: indexes and the admin account. */
     async initialize(): Promise<void> {

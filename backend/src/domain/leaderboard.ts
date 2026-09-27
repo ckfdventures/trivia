@@ -2,14 +2,11 @@ import type { LeaderboardEntry } from "./models.js";
 import { emptyScore, type Room } from "./room.js";
 
 /**
- * Rank players (including any who were promoted to host) by points (desc), then cumulative response time (asc).
+ * Rank players by points (desc), then cumulative response time (asc).
  * Players with equal points share a rank; `tie` flags non-zero shared scores.
  */
 export function buildLeaderboard(room: Room): LeaderboardEntry[] {
-  const competitors = [
-    ...[...room.players.values()].map((p) => ({ id: p.id, nickname: p.nickname })),
-    ...[...room.departedPlayers].map(([id, p]) => ({ id, nickname: p.nickname })),
-  ];
+  const competitors = [...room.players.values()].map((p) => ({ id: p.id, nickname: p.nickname }));
   const entries = competitors.map((p) => {
     const s = room.scores.get(p.id) ?? emptyScore();
     return {

@@ -14,7 +14,7 @@ async function main(): Promise<void> {
   await container.initialize();
 
   const httpServer = createServer(createApp(container));
-  const io = attachSocketGateway(httpServer, container.presence, corsOrigin(config.corsOrigins));
+  const io = attachSocketGateway(httpServer, container.presence, container.voiceService, corsOrigin(config.corsOrigins));
   const scheduler = new JobScheduler(logger);
   scheduler.start(container.jobs);
 

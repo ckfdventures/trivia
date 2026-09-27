@@ -9,6 +9,7 @@ import {
   type Room,
 } from "../domain/room.js";
 import { toPublicRoomState } from "../domain/room-view.js";
+import { clearVoiceTimers } from "../domain/voice.js";
 import { pointsForCorrectAnswer } from "../domain/scoring.js";
 import { badRequest, conflict, forbidden, notFound } from "../shared/http-error.js";
 import { newId } from "../shared/ids.js";
@@ -198,6 +199,7 @@ export class GameService {
     this.clearQuestionTimer(room);
     if (room.hostPromotionTimer) clearTimeout(room.hostPromotionTimer);
     room.hostPromotionTimer = null;
+    clearVoiceTimers(room.voice);
   }
 
   private startNextQuestion(room: Room): void {

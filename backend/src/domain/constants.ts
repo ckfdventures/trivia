@@ -14,3 +14,7 @@ export const HOST_PROMOTION_GRACE_MS = 20 * 1000;
 
 export const BASE_POINTS = 1000;
 export const STREAK_BONUS_STEP = 100;
+
+export const VOICE_SLOTS = 8;
+/** How long a disconnected voice member keeps their slot before it is given up. */
+export const VOICE_SLOT_HOLD_MS = 30 * 1000;

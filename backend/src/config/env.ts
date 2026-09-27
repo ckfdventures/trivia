@@ -9,6 +9,9 @@ const envSchema = z.object({
   JWT_EXPIRES_HOURS: z.coerce.number().positive().default(24),
   ADMIN_EMAIL: z.email(),
   ADMIN_PASSWORD: z.string().min(8, "ADMIN_PASSWORD must be at least 8 characters"),
+  // Cloudflare Realtime TURN app. Without it, voice chat uses public STUN only (no relay fallback).
+  CLOUDFLARE_TURN_KEY_ID: z.string().optional(),
+  CLOUDFLARE_TURN_API_TOKEN: z.string().optional(),
 });
 
 export interface AppConfig {
@@ -20,6 +23,7 @@ export interface AppConfig {
   jwtExpiresHours: number;
   adminEmail: string;
   adminPassword: string;
+  turn: { keyId: string; apiToken: string } | null;
 }
 
 export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
@@ -38,5 +42,9 @@ export function loadConfig(source: NodeJS.ProcessEnv = process.env): AppConfig {
     jwtExpiresHours: env.JWT_EXPIRES_HOURS,
     adminEmail: env.ADMIN_EMAIL.toLowerCase(),
     adminPassword: env.ADMIN_PASSWORD,
+    turn:
+      env.CLOUDFLARE_TURN_KEY_ID && env.CLOUDFLARE_TURN_API_TOKEN
+        ? { keyId: env.CLOUDFLARE_TURN_KEY_ID, apiToken: env.CLOUDFLARE_TURN_API_TOKEN }
+        : null,
   };
 }

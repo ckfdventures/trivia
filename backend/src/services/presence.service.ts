@@ -96,14 +96,12 @@ export class PresenceService {
 
     const conn = room.connections.get(candidate.id);
     room.connections.delete(candidate.id);
-    // The new host stops playing; once the game is underway they keep their score on the leaderboard.
-    room.players.delete(candidate.id);
-    if (room.status === "lobby") room.scores.delete(candidate.id);
-    else room.departedPlayers.set(candidate.id, { nickname: candidate.nickname });
+    // The new host keeps playing: like a host who plays along, their presence now follows the host connection.
+    candidate.connected = false;
     room.hostToken = newId();
     room.hostId = newId();
     // The previous host's player entry (if any) stays in the game as a regular, disconnected player.
-    room.hostPlayerId = null;
+    room.hostPlayerId = candidate.id;
 
     if (conn) {
       try {

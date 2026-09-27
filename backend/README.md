@@ -68,6 +68,7 @@ with `{ "detail": [{ type, loc, msg }] }`.
 | `GET /rooms/:pin` · `POST /rooms/:pin/join` `{ nickname }` | – | |
 | `POST /rooms/:pin/{start,next,skip,end}?host_token=` | host token | |
 | `POST /rooms/:pin/answer` | player session | |
+| `POST /rooms/:pin/voice/mute-all?host_token=` | host token | turns off every voice member's mic except the playing host's |
 | `GET/POST /admin/themes` · `PATCH/DELETE /admin/themes/:id` | admin | deleting a theme deletes its questions |
 | `GET /admin/themes/:id/questions` · `DELETE /admin/questions/:id` | admin | |
 | `POST /admin/question-bank/upload` (multipart `file`, ≤ 2 MB) | admin | validates and previews rows; saves nothing |
@@ -105,4 +106,30 @@ Server → client events:
 | `host_changed` | `{ nickname }` |
 | `error` | `{ message }` — invalid handshake; the server then disconnects |
 
-If the host is disconnected for 20s, the first connected player is promoted to host.
+If the host is disconnected for 20s, the first connected player is promoted to host. They keep playing: their
+player entry follows the new host connection, as for a host who plays along.
+
+### Voice chat
+
+Players (including a host who plays along) can talk in a voice channel of up to 8. Audio goes directly between
+browsers over WebRTC (a full mesh); the server only assigns slots, relays connection-setup messages and hands out
+ICE servers (Cloudflare TURN when `CLOUDFLARE_TURN_KEY_ID`/`CLOUDFLARE_TURN_API_TOKEN` are set, else public STUN).
+Voice uses its own socket, so it survives page changes and never affects game presence:
+
+```js
+io(BACKEND_URL, { path: "/api/socket.io", auth: { pin, role: "voice", token: playerSessionToken } });
+```
+
+| Direction | Event | Payload |
+| --- | --- | --- |
+| → server | `voice:join` | `{ session_id, mic_on, speaker_on }` — take a slot; `session_id` is new per join |
+| → server | `voice:leave` | — |
+| → server | `voice:state` | `{ mic_on, speaker_on }` |
+| → server | `voice:signal` | `{ to, to_session, data }` — relayed only to a member of the same room |
+| ← client | `voice:roster` | `{ capacity, members: [{ player_id, session_id, mic_on, speaker_on, connected }] }` |
+| ← client | `voice:joined` | `{ session_id, ice_servers }` |
+| ← client | `voice:full` | `{ capacity }` |
+| ← client | `voice:signal` | `{ from, from_session, to_session, data }` — `from` is set by the server, never the sender |
+| ← client | `voice:muted_by_host` | `{}` |
+
+A disconnected member keeps their slot for 30s so a brief drop or a page reload doesn't lose it.

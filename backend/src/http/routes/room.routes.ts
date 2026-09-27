@@ -1,9 +1,10 @@
 import { Router } from "express";
 import type { GameService } from "../../services/game.service.js";
+import type { VoiceService } from "../../services/voice.service.js";
 import { answerSchema, createRoomSchema, hostTokenQuerySchema, joinRoomSchema } from "../schemas.js";
 import { parseBody, parseQuery } from "../validation.js";
 
-export function createRoomRouter(game: GameService): Router {
+export function createRoomRouter(game: GameService, voice: VoiceService): Router {
   const router = Router();
   const hostToken = (req: Parameters<typeof parseQuery>[1]) => parseQuery(hostTokenQuerySchema, req).host_token;
 
@@ -34,6 +35,10 @@ export function createRoomRouter(game: GameService): Router {
 
   router.post("/:pin/end", (req, res) => {
     res.json(game.end(req.params.pin, hostToken(req)));
+  });
+
+  router.post("/:pin/voice/mute-all", (req, res) => {
+    res.json(voice.muteAll(req.params.pin, hostToken(req)));
   });
 
   router.post("/:pin/answer", (req, res) => {
