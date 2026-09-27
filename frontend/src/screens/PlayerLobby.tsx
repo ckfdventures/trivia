@@ -7,6 +7,9 @@ import { motion } from "framer-motion";
 import { WifiHigh, WifiSlash, Confetti } from "@phosphor-icons/react";
 import { Logo } from "../components/Logo";
 import { useRoomSocket } from "../hooks/useRoomSocket";
+import { useVoice } from "../hooks/useVoice";
+import { VoiceControls, VoicePrompt, VoiceRoster } from "../components/Voice";
+import { becomeHost } from "../lib/game";
 
 export default function PlayerLobby() {
   const pin = usePin();
@@ -23,18 +26,26 @@ export default function PlayerLobby() {
     setSession(stored);
   }, [pin, navigate]);
 
-  const { connected, state } = useRoomSocket({
+  const { connected, state, lastEvent } = useRoomSocket({
     pin,
     role: "player",
     token: session?.session_token,
     enabled: !!session,
   });
+  const { voice, snapshot: voiceSnapshot } = useVoice(pin, session);
 
   useEffect(() => {
     if (state?.status && state.status !== "lobby") {
       navigate(`/play/${pin}/game`);
     }
   }, [state?.status, navigate, pin]);
+
+  // Host promotion can happen before the game starts too; the new host keeps playing.
+  useEffect(() => {
+    if (lastEvent?.type !== "promoted_to_host") return;
+    becomeHost(pin, lastEvent.data as { host_token: string; host_id: string }, session, state?.quiz_title || "");
+    navigate(`/host/lobby/${pin}`);
+  }, [lastEvent, pin, navigate, session, state?.quiz_title]);
 
   const players = state?.players || [];
 
@@ -49,6 +60,8 @@ export default function PlayerLobby() {
       <div className="relative z-10">
         <header className="max-w-lg mx-auto px-6 py-6 flex items-center justify-between">
           <Logo inverse />
+          <div className="flex items-center gap-2">
+          <VoiceControls pin={pin} voice={voice} snapshot={voiceSnapshot} />
           <div
             className={
               "rounded-full px-3 h-9 inline-flex items-center gap-2 text-xs font-black " +
@@ -59,7 +72,16 @@ export default function PlayerLobby() {
             {connected ? <WifiHigh size={16} weight="bold" /> : <WifiSlash size={16} weight="bold" />}
             {connected ? "LIVE" : "RECONNECTING…"}
           </div>
+          </div>
         </header>
+
+        <VoicePrompt pin={pin} voice={voice} snapshot={voiceSnapshot} />
+        <VoiceRoster
+          snapshot={voiceSnapshot}
+          selfId={session?.player_id}
+          players={players}
+          className="max-w-lg mx-auto px-6"
+        />
 
         <main className="max-w-lg mx-auto px-6 pt-8 pb-24 text-center">
           <div className="text-orange-300 font-black uppercase tracking-widest text-xs">

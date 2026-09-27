@@ -9,9 +9,11 @@ import { AnswerOption } from "../components/AnswerOption";
 import { ReconnectingOverlay } from "../components/ReconnectingOverlay";
 import { useRoomSocket } from "../hooks/useRoomSocket";
 import { useServerCountdown } from "../hooks/useServerCountdown";
-import { submitAnswer } from "../lib/game";
+import { becomeHost, submitAnswer } from "../lib/game";
+import { useVoice } from "../hooks/useVoice";
+import { VoiceControls, VoicePrompt, VoiceRoster } from "../components/Voice";
 import { errorMessage } from "../lib/api";
-import type { HostSession, LeaderboardEntry, PlayerResult, PlayerSession, RoomState } from "../lib/types";
+import type { LeaderboardEntry, PlayerResult, PlayerSession, RoomState } from "../lib/types";
 
 export default function PlayerGame() {
   const pin = usePin();
@@ -48,20 +50,15 @@ export default function PlayerGame() {
   useEffect(() => {
     if (!lastEvent) return;
     if (lastEvent.type === "promoted_to_host") {
-      const d = lastEvent.data as Omit<HostSession, "quiz_title">;
-      const hostSession: HostSession = {
-        pin: d.pin,
-        host_token: d.host_token,
-        host_id: d.host_id,
-        quiz_title: state?.quiz_title || "",
-      };
-      localStorage.setItem(`ts_host_${pin}`, JSON.stringify(hostSession));
-      localStorage.removeItem(`ts_player_${pin}`);
+      // The new host keeps playing from the host screen.
+      becomeHost(pin, lastEvent.data as { host_token: string; host_id: string }, session, state?.quiz_title || "");
       // eslint-disable-next-line react-hooks/set-state-in-effect -- reacting to a socket event
       setPromotedNotice(true);
       setTimeout(() => navigate(`/host/game/${pin}`), 1400);
     }
-  }, [lastEvent, pin, navigate, state?.quiz_title]);
+  }, [lastEvent, pin, navigate, session, state?.quiz_title]);
+
+  const { voice, snapshot: voiceSnapshot } = useVoice(pin, session);
 
   const q = state?.question;
   const rev = state?.review;
@@ -107,6 +104,7 @@ export default function PlayerGame() {
         <header className="max-w-lg mx-auto px-5 py-5 [@media(max-height:500px)]:py-2 flex items-center justify-between">
           <Logo inverse />
           <div className="flex items-center gap-2">
+            <VoiceControls pin={pin} voice={voice} snapshot={voiceSnapshot} />
             <div
               className={
                 "rounded-full px-3 h-9 inline-flex items-center gap-2 text-xs font-black " +
@@ -119,6 +117,14 @@ export default function PlayerGame() {
             </div>
           </div>
         </header>
+
+        <VoicePrompt pin={pin} voice={voice} snapshot={voiceSnapshot} />
+        <VoiceRoster
+          snapshot={voiceSnapshot}
+          selfId={session?.player_id}
+          players={state?.players ?? []}
+          className="max-w-lg mx-auto px-5 mb-2 [@media(max-height:500px)]:hidden"
+        />
 
         <main className="max-w-lg mx-auto px-5 pb-24">
           {/* Player identity strip (hidden mid-question on short landscape screens to keep every answer on screen) */}

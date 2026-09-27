@@ -18,6 +18,8 @@ import { AnswerShape, ANSWER_META } from "../components/AnswerShape";
 import { ReconnectingOverlay } from "../components/ReconnectingOverlay";
 import { ConfirmModal } from "../components/ConfirmModal";
 import { useRoomSocket } from "../hooks/useRoomSocket";
+import { useVoice } from "../hooks/useVoice";
+import { HostMuteAllButton, VoiceControls, VoicePrompt, VoiceRoster } from "../components/Voice";
 import { useServerCountdown } from "../hooks/useServerCountdown";
 import { hostNext, hostSkip, hostEnd, submitAnswer } from "../lib/game";
 import { errorMessage } from "../lib/api";
@@ -53,6 +55,8 @@ export default function HostGame() {
     token: session?.host_token,
     enabled: !!session,
   });
+  // A host who plays along is in voice through their player entry.
+  const { voice, snapshot: voiceSnapshot } = useVoice(pin, session?.player);
 
   useEffect(() => {
     if (state?.status === "lobby") {
@@ -131,6 +135,8 @@ export default function HostGame() {
             </div>
           </div>
           <div className="flex items-center gap-2 sm:gap-3">
+            <VoiceControls pin={pin} voice={voice} snapshot={voiceSnapshot} />
+            <HostMuteAllButton pin={pin} hostToken={session?.host_token} />
             <div
               aria-label={connected ? "Live" : "Offline"}
               className={
@@ -152,6 +158,14 @@ export default function HostGame() {
             </button>
           </div>
         </header>
+
+        <VoicePrompt pin={pin} voice={voice} snapshot={voiceSnapshot} />
+        <VoiceRoster
+          snapshot={voiceSnapshot}
+          selfId={session?.player?.player_id}
+          players={state?.players ?? []}
+          className="max-w-6xl mx-auto px-6 md:px-10"
+        />
 
         <main className="max-w-6xl mx-auto px-6 md:px-10 pb-24">
           {/* Question header */}

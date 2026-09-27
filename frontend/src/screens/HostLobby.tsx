@@ -6,6 +6,8 @@ import { motion, AnimatePresence } from "framer-motion";
 import { Copy, LinkSimple, Users, Play, ArrowLeft, WifiHigh, WifiSlash } from "@phosphor-icons/react";
 import { Logo } from "../components/Logo";
 import { useRoomSocket } from "../hooks/useRoomSocket";
+import { useVoice } from "../hooks/useVoice";
+import { HostMuteAllButton, VoiceControls, VoicePrompt, VoiceRoster } from "../components/Voice";
 import { errorMessage, startRoom } from "../lib/api";
 import type { HostSession } from "../lib/types";
 
@@ -35,6 +37,8 @@ export default function HostLobby() {
     token: session?.host_token,
     enabled: !!session,
   });
+  // A host who plays along is in voice through their player entry.
+  const { voice, snapshot: voiceSnapshot } = useVoice(pin, session?.player);
 
   useEffect(() => {
     // Navigate to game view once host has started the round
@@ -87,6 +91,8 @@ export default function HostLobby() {
         <header className="max-w-7xl mx-auto px-6 md:px-10 py-6 flex items-center justify-between">
           <Logo inverse />
           <div className="flex items-center gap-2 sm:gap-3">
+            <VoiceControls pin={pin} voice={voice} snapshot={voiceSnapshot} />
+            <HostMuteAllButton pin={pin} hostToken={session?.host_token} />
             <div
               aria-label={connected ? "Live" : "Reconnecting"}
               className={
@@ -108,6 +114,14 @@ export default function HostLobby() {
             </button>
           </div>
         </header>
+
+        <VoicePrompt pin={pin} voice={voice} snapshot={voiceSnapshot} />
+        <VoiceRoster
+          snapshot={voiceSnapshot}
+          selfId={session?.player?.player_id}
+          players={players}
+          className="max-w-7xl mx-auto px-6 md:px-10"
+        />
 
         <main className="max-w-7xl mx-auto px-6 md:px-10 pb-20">
           {/* PIN row */}
