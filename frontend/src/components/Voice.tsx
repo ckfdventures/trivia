@@ -44,19 +44,19 @@ export function VoicePrompt({ pin, voice, snapshot }: VoiceProps) {
   const full = snapshot.roster.length >= snapshot.capacity;
 
   return (
-    <div className="fixed inset-0 z-50 bg-indigo-950/70 backdrop-blur-sm flex items-center justify-center p-6" data-testid="voice-prompt">
-      <div className="max-w-md w-full bg-white rounded-3xl p-8 card-lift">
-        <div className="h-14 w-14 rounded-2xl bg-orange-300 grid place-items-center">
+    <div className="fixed inset-0 z-50 bg-indigo-950/70 backdrop-blur-sm flex p-4 sm:p-6 overflow-y-auto" data-testid="voice-prompt">
+      <div className="m-auto max-w-md w-full bg-white rounded-3xl p-6 sm:p-8 [@media(max-height:500px)]:p-5 card-lift">
+        <div className="h-14 w-14 rounded-2xl bg-orange-300 grid place-items-center [@media(max-height:500px)]:hidden">
           <Microphone size={30} weight="fill" className="text-indigo-950" />
         </div>
-        <h3 className="font-display font-black text-3xl text-indigo-950 mt-5">Talk with the other players?</h3>
+        <h3 className="font-display font-black text-2xl sm:text-3xl text-indigo-950 mt-5 [@media(max-height:500px)]:mt-0">Talk with the other players?</h3>
         <p className="text-indigo-950/70 font-semibold mt-3">
           Voice chat lets up to {snapshot.capacity} players hear each other during the game. Your browser will ask for
           your mic next; if you say no, you can still listen. You can mute yourself or the room at any time.
         </p>
         <p className="text-indigo-950/50 font-semibold text-sm mt-3">Voice uses mobile data, up to about 100 MB an hour.</p>
         {full && <p className="text-red-600 font-bold text-sm mt-3">Voice is full right now ({snapshot.capacity} players).</p>}
-        <div className="mt-8 flex gap-3 justify-end">
+        <div className="mt-8 [@media(max-height:500px)]:mt-4 flex gap-3 justify-end">
           <button
             onClick={() => choose(false)}
             data-testid="voice-prompt-skip"
@@ -169,7 +169,11 @@ export function VoiceRoster({ snapshot, selfId, players, className = "" }: Roste
           The host muted everyone. Tap the mic to talk again.
         </div>
       )}
-      <div className="flex flex-wrap items-center gap-2">
+      {/* One row that scrolls sideways, so a full voice channel never pushes the game down on phones. */}
+      <div className="flex items-center gap-2 overflow-x-auto no-scrollbar -mx-1 px-1 py-1">
+        <span className="shrink-0 text-white/40 text-xs font-bold" aria-label="Players in voice">
+          {snapshot.roster.length}/{snapshot.capacity}
+        </span>
         {snapshot.roster.map((m) => {
           const isSelf = m.player_id === selfId;
           const speaking = snapshot.speaking.includes(m.player_id);
@@ -181,7 +185,7 @@ export function VoiceRoster({ snapshot, selfId, players, className = "" }: Roste
               data-testid={`voice-member-${m.player_id}`}
               data-speaking={speaking}
               className={
-                "relative inline-flex items-center gap-1.5 rounded-full pl-1 pr-3 h-8 text-xs font-bold border transition-all " +
+                "relative shrink-0 inline-flex items-center gap-1.5 rounded-full pl-1 pr-3 h-8 text-xs font-bold border transition-all " +
                 (speaking
                   ? "bg-green-400/25 border-green-300 text-white shadow-[0_0_14px_rgba(74,222,128,0.7)]"
                   : "bg-white/10 border-white/15 text-white/90") +
@@ -196,16 +200,13 @@ export function VoiceRoster({ snapshot, selfId, players, className = "" }: Roste
               >
                 {name.slice(0, 1).toUpperCase()}
               </span>
-              <span className="max-w-[7rem] truncate">{isSelf ? `${name} (you)` : name}</span>
+              <span className="max-w-[4.5rem] sm:max-w-[7rem] truncate">{isSelf ? "You" : name}</span>
               {!m.mic_on && <MicrophoneSlash size={13} weight="fill" className="text-red-300" aria-label="Mic off" />}
               {!m.speaker_on && <SpeakerSlash size={13} weight="fill" className="text-red-300" aria-label="Can't hear" />}
               {failed && <WifiSlash size={13} weight="bold" className="text-orange-300" aria-label="Can't connect" />}
             </div>
           );
         })}
-        <span className="text-white/40 text-xs font-bold">
-          {snapshot.roster.length}/{snapshot.capacity} in voice
-        </span>
       </div>
     </div>
   );

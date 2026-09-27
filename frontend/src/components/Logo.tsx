@@ -3,7 +3,8 @@
 import React from "react";
 import { Lightning } from "@phosphor-icons/react";
 
-export function Logo({ inverse = false, size = 22 }: { inverse?: boolean; size?: number }) {
+/** `compact` hides the wordmark below the `sm` breakpoint, leaving room for header controls on phones. */
+export function Logo({ inverse = false, size = 22, compact = false }: { inverse?: boolean; size?: number; compact?: boolean }) {
   return (
     <div className="flex items-center gap-2 select-none" data-testid="app-logo">
       <div
@@ -17,7 +18,8 @@ export function Logo({ inverse = false, size = 22 }: { inverse?: boolean; size?:
       <div
         className={
           "font-display font-black tracking-tight text-xl " +
-          (inverse ? "text-white" : "text-indigo-950")
+          (inverse ? "text-white" : "text-indigo-950") +
+          (compact ? " hidden sm:block" : "")
         }
       >
         TRIVIA<span className={inverse ? "text-orange-300" : "text-orange-500"}>STREAM</span>

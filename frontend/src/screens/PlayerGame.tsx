@@ -102,7 +102,7 @@ export default function PlayerGame() {
 
       <div className="relative z-10">
         <header className="max-w-lg mx-auto px-5 py-5 [@media(max-height:500px)]:py-2 flex items-center justify-between">
-          <Logo inverse />
+          <Logo inverse compact />
           <div className="flex items-center gap-2">
             <VoiceControls pin={pin} voice={voice} snapshot={voiceSnapshot} />
             <div
@@ -111,9 +111,10 @@ export default function PlayerGame() {
                 (connected ? "bg-green-500/20 text-green-200" : "bg-red-500/20 text-red-200")
               }
               data-testid="player-conn-status"
+              aria-label={connected ? "Live" : "Offline"}
             >
               {connected ? <WifiHigh size={16} weight="bold" /> : <WifiSlash size={16} weight="bold" />}
-              {connected ? "LIVE" : "OFFLINE"}
+              <span className="hidden min-[380px]:inline">{connected ? "LIVE" : "OFFLINE"}</span>
             </div>
           </div>
         </header>

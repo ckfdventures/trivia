@@ -129,7 +129,7 @@ export default function HostGame() {
       <div className="relative z-10">
         <header className="max-w-7xl mx-auto px-6 md:px-10 py-6 flex items-center justify-between gap-4">
           <div className="flex items-center gap-4">
-            <Logo inverse />
+            <Logo inverse compact />
             <div className="hidden sm:block text-white/60 font-bold text-sm">
               PIN <span className="text-white font-black tracking-widest">{pin}</span>
             </div>

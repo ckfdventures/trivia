@@ -187,3 +187,11 @@ textarea,
 label {
     touch-action: manipulation;
 }
+
+/* Scrollable rows without a visible scrollbar (e.g. the voice roster on phones). */
+.no-scrollbar {
+    scrollbar-width: none;
+}
+.no-scrollbar::-webkit-scrollbar {
+    display: none;
+}

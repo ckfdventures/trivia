@@ -89,7 +89,7 @@ export default function HostLobby() {
 
       <div className="relative z-10">
         <header className="max-w-7xl mx-auto px-6 md:px-10 py-6 flex items-center justify-between">
-          <Logo inverse />
+          <Logo inverse compact />
           <div className="flex items-center gap-2 sm:gap-3">
             <VoiceControls pin={pin} voice={voice} snapshot={voiceSnapshot} />
             <HostMuteAllButton pin={pin} hostToken={session?.host_token} />

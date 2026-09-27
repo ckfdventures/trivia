@@ -59,7 +59,7 @@ export default function PlayerLobby() {
 
       <div className="relative z-10">
         <header className="max-w-lg mx-auto px-6 py-6 flex items-center justify-between">
-          <Logo inverse />
+          <Logo inverse compact />
           <div className="flex items-center gap-2">
           <VoiceControls pin={pin} voice={voice} snapshot={voiceSnapshot} />
           <div
@@ -68,9 +68,10 @@ export default function PlayerLobby() {
               (connected ? "bg-green-500/20 text-green-200" : "bg-red-500/20 text-red-200")
             }
             data-testid="player-conn-status"
+            aria-label={connected ? "Live" : "Reconnecting"}
           >
             {connected ? <WifiHigh size={16} weight="bold" /> : <WifiSlash size={16} weight="bold" />}
-            {connected ? "LIVE" : "RECONNECTING…"}
+            <span className="hidden min-[380px]:inline">{connected ? "LIVE" : "RECONNECTING…"}</span>
           </div>
           </div>
         </header>
