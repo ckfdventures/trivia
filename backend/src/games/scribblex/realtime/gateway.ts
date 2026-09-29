@@ -89,19 +89,30 @@ export function attachScribbleSocket(
   drawing.sync(room, conn);
   match.syncPlayer(room, playerId, conn);
 
-  /** Run a host/player action, reporting a refusal back to the caller rather than throwing. */
-  const guard = (action: () => void) => {
+  /**
+   * Run a host/player action, reporting a refusal back to the caller rather than throwing.
+   *
+   * Handles actions that return a promise too: starting a match has to reach the database for
+   * its words, and a rejection there is exactly the case the caller most needs told about.
+   */
+  const report = (err: unknown) => {
+    if (err instanceof HttpError) {
+      socket.emit(ScribbleEvents.Error, {
+        message: typeof err.detail === "string" ? err.detail : "That isn't allowed.",
+      });
+      return;
+    }
+    logger.error(`scribblex socket action failed in ${roomCode}`, err);
+    socket.emit(ScribbleEvents.Error, { message: "Something went wrong. Try again." });
+  };
+
+  // Actions return whatever they return; only a rejection matters here.
+  const guard = (action: () => unknown) => {
     try {
-      action();
+      const result = action();
+      if (result instanceof Promise) void result.catch(report);
     } catch (err) {
-      if (err instanceof HttpError) {
-        socket.emit(ScribbleEvents.Error, {
-          message: typeof err.detail === "string" ? err.detail : "That isn't allowed.",
-        });
-        return;
-      }
-      logger.error(`scribblex socket action failed in ${roomCode}`, err);
-      socket.emit(ScribbleEvents.Error, { message: "Something went wrong. Try again." });
+      report(err);
     }
   };
 

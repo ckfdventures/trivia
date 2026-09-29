@@ -75,7 +75,9 @@ export function createContainer(config: AppConfig, db: Db, logger: Logger, optio
     scribbleStore,
     scribbleNotifier,
     profanity,
-    (room) => scribbleMatch.autoStart(room),
+    // These hooks fire from timers with no caller waiting on them, so a rejection here
+    // would surface as an unhandled promise and take the process down.
+    (room) => void scribbleMatch.autoStart(room).catch((err) => logger.error("scribblex autostart failed", err)),
     (room) => scribbleMatch.onDrawerLost(room),
   );
   const scribbleDrawing = new ScribbleDrawingService(scribbleStore, scribbleNotifier);

@@ -192,11 +192,14 @@ export default function Lobby({ room, meId, onLeave }: Props) {
           <div className="space-y-2">
             {decks.map((deck) => {
               const on = settings!.decks.includes(deck.id);
+              // A deck with nothing in it cannot supply a word, so offering it as a choice
+              // only sets up a match that refuses to start.
+              const usable = deck.word_count > 0;
               return (
                 <button
                   key={deck.id}
                   onClick={() => toggleDeck(deck.id)}
-                  disabled={!isHost}
+                  disabled={!isHost || !usable}
                   aria-pressed={on}
                   data-testid={`sx-deck-${deck.id}`}
                   className={`w-full flex items-center gap-sx-sm rounded-sx-md border-2 bg-white p-sx-sm text-left
@@ -209,7 +212,7 @@ export default function Lobby({ room, meId, onLeave }: Props) {
                   <span className="min-w-0 flex-1">
                     <span className="block font-sx-display text-sx-label-lg text-sx-ink">{deck.name}</span>
                     <span className="block font-sx-body text-sx-body-sm text-sx-on-surface-variant truncate">
-                      {deck.blurb} · {deck.word_count} words
+                      {usable ? `${deck.blurb} · ${deck.word_count} words` : "No words in it yet"}
                     </span>
                   </span>
                   <span

@@ -22,6 +22,7 @@ import { ScribbleRoomService } from "../src/games/scribblex/services/room.servic
 import { ScribbleRoomStore } from "../src/games/scribblex/services/room-store.js";
 import { WordListProfanityFilter } from "../src/services/profanity-filter.js";
 import { silentLogger } from "../src/shared/logger.js";
+import { badRequest } from "../src/shared/http-error.js";
 
 class FakeConn implements RoomConnection {
   readonly sent: { event: string; data: any }[] = [];
@@ -45,8 +46,10 @@ const profile = (name: string) => ({ name, avatarId: "pip", hatId: null });
 
 /** Always offers the same three words, so tests can talk about a known secret. */
 class FixedWords implements WordSource {
-  constructor(private readonly words = ["kitten", "penguin", "dragon"]) {}
+  constructor(private readonly words: string[] = ["kitten", "penguin", "dragon"]) {}
   async drawChoices(_s: RoomSettings, _used: Set<string>, count = 3): Promise<string[]> {
+    // Mirrors the real service: an empty pool is an error, not an empty list.
+    if (this.words.length === 0) throw badRequest("No words to play with — pick a deck.");
     return this.words.slice(0, count);
   }
 }
@@ -218,12 +221,12 @@ describe("starting a match", () => {
   beforeEach(() => vi.useFakeTimers());
   afterEach(() => vi.useRealTimers());
 
-  it("lets only the host start", () => {
+  it("lets only the host start", async () => {
     const { match, code, a } = startedMatch();
-    expect(() => match.start(code, a.playerId)).toThrow(/only the host/i);
+    await expect(match.start(code, a.playerId)).rejects.toThrow(/only the host/i);
   });
 
-  it("refuses to start without a word source", () => {
+  it("refuses to start without a word source", async () => {
     const store = new ScribbleRoomStore();
     const notifier = new ScribbleRoomNotifier(store);
     const m = new ScribbleMatchService(store, notifier, new FixedWords(), silentLogger);
@@ -231,12 +234,28 @@ describe("starting a match", () => {
     const host = rooms.createRoom(profile("Host"));
     rooms.joinRoom(host.room.code, profile("Ana"));
 
-    expect(() => m.start(host.room.code, host.playerId)).toThrow(/word deck/i);
+    await expect(m.start(host.room.code, host.playerId)).rejects.toThrow(/word deck/i);
+  });
+
+  it("refuses when the chosen decks are empty, instead of ending instantly", async () => {
+    // An owner can create a deck and not fill it yet. Having picked a deck is not the same as
+    // having words, and finding that out after starting drops everyone on a blank podium.
+    const store = new ScribbleRoomStore();
+    const notifier = new ScribbleRoomNotifier(store);
+    const empty = new ScribbleMatchService(store, notifier, new FixedWords([]), silentLogger);
+    const rooms = new ScribbleRoomService(store, notifier, new WordListProfanityFilter());
+
+    const host = rooms.createRoom(profile("Host"), { decks: ["an-empty-deck"] });
+    rooms.joinRoom(host.room.code, profile("Ana"));
+
+    await expect(empty.start(host.room.code, host.playerId)).rejects.toThrow(/no words/i);
+    // And the room is left where it was, not pushed through to a result.
+    expect(store.get(host.room.code)!.phase).toBe("LOBBY");
   });
 
   it("moves into word pick and offers choices to the drawer alone", async () => {
     const { match, code, host, conns } = startedMatch();
-    match.start(code, host.playerId);
+    await match.start(code, host.playerId);
     await vi.advanceTimersByTimeAsync(0);
 
     expect(conns.host.last(MatchEvents.WordChoices)?.words).toHaveLength(3);
@@ -246,7 +265,7 @@ describe("starting a match", () => {
 
   it("takes the first word for a drawer who dithers", async () => {
     const { match, code, host, room, conns } = startedMatch();
-    match.start(code, host.playerId);
+    await match.start(code, host.playerId);
     await vi.advanceTimersByTimeAsync(0);
     expect(room().phase).toBe("WORD_PICK");
 
@@ -262,7 +281,7 @@ describe("the secret word", () => {
 
   it("reaches the drawer but nobody else", async () => {
     const { match, code, host, conns } = startedMatch();
-    match.start(code, host.playerId);
+    await match.start(code, host.playerId);
     await vi.advanceTimersByTimeAsync(0);
     match.pickWord(code, host.playerId, 0);
 
@@ -274,7 +293,7 @@ describe("the secret word", () => {
   it("never appears in anything a guesser receives", async () => {
     // Gentle spelling off, so the near miss below stays wrong and nobody earns the word.
     const { match, code, host, a, b, room, conns } = startedMatch({ gentle_spelling: false });
-    match.start(code, host.playerId);
+    await match.start(code, host.playerId);
     await vi.advanceTimersByTimeAsync(0);
     match.pickWord(code, host.playerId, 0);
 
@@ -294,7 +313,7 @@ describe("the secret word", () => {
 
   it("is sent to a guesser only once they have earned it", async () => {
     const { match, code, host, a, conns } = startedMatch();
-    match.start(code, host.playerId);
+    await match.start(code, host.playerId);
     await vi.advanceTimersByTimeAsync(0);
     match.pickWord(code, host.playerId, 0);
 
@@ -307,7 +326,7 @@ describe("the secret word", () => {
 
   it("is not in the masked word sent at turn start", async () => {
     const { match, code, host, conns } = startedMatch();
-    match.start(code, host.playerId);
+    await match.start(code, host.playerId);
     await vi.advanceTimersByTimeAsync(0);
     match.pickWord(code, host.playerId, 0);
 
@@ -323,7 +342,7 @@ describe("guessing", () => {
 
   async function playing(settings: SettingsPatchInput = {}) {
     const ctx = startedMatch(settings);
-    ctx.match.start(ctx.code, ctx.host.playerId);
+    await ctx.match.start(ctx.code, ctx.host.playerId);
     await vi.advanceTimersByTimeAsync(0);
     ctx.match.pickWord(ctx.code, ctx.host.playerId, 0);
     return ctx;
@@ -409,7 +428,7 @@ describe("turn and match lifecycle", () => {
 
   it("reveals the word when the clock runs out, then moves on", async () => {
     const { match, code, host, room, conns } = startedMatch();
-    match.start(code, host.playerId);
+    await match.start(code, host.playerId);
     await vi.advanceTimersByTimeAsync(0);
     match.pickWord(code, host.playerId, 0);
 
@@ -423,7 +442,7 @@ describe("turn and match lifecycle", () => {
 
   it("gives away letters as the turn wears on", async () => {
     const { match, code, host, room, conns } = startedMatch();
-    match.start(code, host.playerId);
+    await match.start(code, host.playerId);
     await vi.advanceTimersByTimeAsync(0);
     match.pickWord(code, host.playerId, 0);
 
@@ -439,7 +458,7 @@ describe("turn and match lifecycle", () => {
   it("gives no hints when the modifier is off", async () => {
     const { match, code, host, rooms, room, conns } = startedMatch();
     rooms.updateSettings(code, host.playerId, { letter_hints: false });
-    match.start(code, host.playerId);
+    await match.start(code, host.playerId);
     await vi.advanceTimersByTimeAsync(0);
     match.pickWord(code, host.playerId, 0);
 
@@ -450,7 +469,7 @@ describe("turn and match lifecycle", () => {
   it("plays every player once per round, then ends and returns to the lobby", async () => {
     const { match, code, host, rooms, room, conns } = startedMatch();
     rooms.updateSettings(code, host.playerId, { rounds: 3, three_word_choice: false });
-    match.start(code, host.playerId);
+    await match.start(code, host.playerId);
     await vi.advanceTimersByTimeAsync(0);
 
     const turnMs = room().settings.turnSeconds * 1000;
@@ -473,7 +492,7 @@ describe("turn and match lifecycle", () => {
   it("lets the host start another match from the results screen", async () => {
     const { match, code, host, rooms, room } = startedMatch();
     rooms.updateSettings(code, host.playerId, { rounds: 3, three_word_choice: false });
-    match.start(code, host.playerId);
+    await match.start(code, host.playerId);
     await vi.advanceTimersByTimeAsync(0);
 
     const turnMs = room().settings.turnSeconds * 1000;
@@ -489,7 +508,7 @@ describe("turn and match lifecycle", () => {
 
   it("clears the canvas between turns", async () => {
     const { match, code, host, room } = startedMatch();
-    match.start(code, host.playerId);
+    await match.start(code, host.playerId);
     await vi.advanceTimersByTimeAsync(0);
     match.pickWord(code, host.playerId, 0);
     room().canvas.ops.push({
@@ -504,7 +523,7 @@ describe("turn and match lifecycle", () => {
 
   it("forfeits the turn when the drawer stays gone", async () => {
     const { match, rooms, code, host, room, conns } = startedMatch();
-    match.start(code, host.playerId);
+    await match.start(code, host.playerId);
     await vi.advanceTimersByTimeAsync(0);
     match.pickWord(code, host.playerId, 0);
     expect(room().phase).toBe("DRAWING");
@@ -516,7 +535,7 @@ describe("turn and match lifecycle", () => {
 
   it("keeps the turn going if the drawer comes straight back", async () => {
     const { match, rooms, code, host, room, conns } = startedMatch();
-    match.start(code, host.playerId);
+    await match.start(code, host.playerId);
     await vi.advanceTimersByTimeAsync(0);
     match.pickWord(code, host.playerId, 0);
 
@@ -535,7 +554,7 @@ describe("reconnecting mid-turn", () => {
 
   it("gives the drawer their word back", async () => {
     const { match, rooms, code, host, room } = startedMatch();
-    match.start(code, host.playerId);
+    await match.start(code, host.playerId);
     await vi.advanceTimersByTimeAsync(0);
     match.pickWord(code, host.playerId, 0);
 
@@ -547,7 +566,7 @@ describe("reconnecting mid-turn", () => {
 
   it("does not hand the word to a guesser who has not got it", async () => {
     const { match, rooms, code, host, a, room } = startedMatch();
-    match.start(code, host.playerId);
+    await match.start(code, host.playerId);
     await vi.advanceTimersByTimeAsync(0);
     match.pickWord(code, host.playerId, 0);
 
@@ -560,7 +579,7 @@ describe("reconnecting mid-turn", () => {
 
   it("gives it back to a guesser who already solved it", async () => {
     const { match, rooms, code, host, a, room } = startedMatch();
-    match.start(code, host.playerId);
+    await match.start(code, host.playerId);
     await vi.advanceTimersByTimeAsync(0);
     match.pickWord(code, host.playerId, 0);
     match.guess(code, a.playerId, "kitten");
