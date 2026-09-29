@@ -1,6 +1,7 @@
 import type { Db } from "mongodb";
 import type { AppConfig } from "./config/env.js";
 import { ScribbleRoomCleanupJob } from "./games/scribblex/jobs/room-cleanup.job.js";
+import { ScribbleDrawingService } from "./games/scribblex/services/drawing.service.js";
 import { ScribbleRoomNotifier } from "./games/scribblex/services/room-notifier.js";
 import { ScribbleRoomService } from "./games/scribblex/services/room.service.js";
 import { ScribbleRoomStore } from "./games/scribblex/services/room-store.js";
@@ -60,6 +61,7 @@ export function createContainer(config: AppConfig, db: Db, logger: Logger, optio
   const scribbleStore = new ScribbleRoomStore();
   const scribbleNotifier = new ScribbleRoomNotifier(scribbleStore);
   const scribbleRooms = new ScribbleRoomService(scribbleStore, scribbleNotifier, profanity);
+  const scribbleDrawing = new ScribbleDrawingService(scribbleStore, scribbleNotifier);
 
   return {
     config,
@@ -76,6 +78,7 @@ export function createContainer(config: AppConfig, db: Db, logger: Logger, optio
     scribbleStore,
     scribbleNotifier,
     scribbleRooms,
+    scribbleDrawing,
     jobs: [
       new RoomCleanupJob(roomStore, gameService, logger),
       new ScribbleRoomCleanupJob(scribbleStore, logger),

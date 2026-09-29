@@ -21,6 +21,7 @@ async function main(): Promise<void> {
       voice: container.voiceService,
       scribbleRooms: container.scribbleRooms,
       scribbleNotifier: container.scribbleNotifier,
+      scribbleDrawing: container.scribbleDrawing,
       logger,
     },
     corsOrigin(config.corsOrigins),

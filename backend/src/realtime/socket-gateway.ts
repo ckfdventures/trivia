@@ -3,6 +3,7 @@ import { Server, type Socket } from "socket.io";
 import { z } from "zod";
 import type { RoomConnection } from "../domain/room.js";
 import { attachScribbleSocket } from "../games/scribblex/realtime/gateway.js";
+import type { ScribbleDrawingService } from "../games/scribblex/services/drawing.service.js";
 import type { ScribbleRoomNotifier } from "../games/scribblex/services/room-notifier.js";
 import type { ScribbleRoomService } from "../games/scribblex/services/room.service.js";
 import type { PresenceService } from "../services/presence.service.js";
@@ -78,6 +79,7 @@ export interface GatewayDeps {
   voice: VoiceService;
   scribbleRooms: ScribbleRoomService;
   scribbleNotifier: ScribbleRoomNotifier;
+  scribbleDrawing: ScribbleDrawingService;
   logger: Logger;
 }
 
@@ -107,7 +109,15 @@ export function attachSocketGateway(
 
     if (role === "scribblex") {
       // The ScribbleX module emits its own error event before returning false.
-      if (!attachScribbleSocket(socket, deps.scribbleRooms, deps.scribbleNotifier, deps.logger)) {
+      if (
+        !attachScribbleSocket(
+          socket,
+          deps.scribbleRooms,
+          deps.scribbleNotifier,
+          deps.scribbleDrawing,
+          deps.logger,
+        )
+      ) {
         socket.disconnect(true);
       }
       return;

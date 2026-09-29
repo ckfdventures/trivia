@@ -2,7 +2,8 @@ import type { Socket } from "socket.io";
 import { HttpError } from "../../../shared/http-error.js";
 import type { Logger } from "../../../shared/logger.js";
 import type { RoomConnection } from "../domain/room.js";
-import { kickSchema, readySchema, settingsPatchSchema } from "../http/schemas.js";
+import { fillSchema, kickSchema, readySchema, settingsPatchSchema, strokeSchema } from "../http/schemas.js";
+import type { ScribbleDrawingService } from "../services/drawing.service.js";
 import { ScribbleEvents, type ScribbleRoomNotifier } from "../services/room-notifier.js";
 import type { ScribbleRoomService } from "../services/room.service.js";
 
@@ -49,6 +50,7 @@ export function attachScribbleSocket(
   socket: Socket,
   rooms: ScribbleRoomService,
   notifier: ScribbleRoomNotifier,
+  drawing: ScribbleDrawingService,
   logger: Logger,
 ): boolean {
   const { code, playerId, token } = readHandshake(socket);
@@ -67,6 +69,8 @@ export function attachScribbleSocket(
   }
   const roomCode = room.code;
   notifier.sendState(conn, room);
+  // A client arriving mid-drawing needs the canvas as it already stands.
+  drawing.sync(room, conn);
 
   /** Run a host/player action, reporting a refusal back to the caller rather than throwing. */
   const guard = (action: () => void) => {
@@ -103,6 +107,20 @@ export function attachScribbleSocket(
   });
 
   socket.on("room:leave", () => guard(() => rooms.leave(roomCode, playerId)));
+
+  // Drawing is high-frequency and self-authorising: a payload that does not parse, or comes
+  // from someone who may not draw, is dropped silently rather than answered with an error.
+  socket.on("draw:stroke", (payload: unknown) => {
+    const input = strokeSchema.safeParse(payload);
+    if (input.success) drawing.stroke(roomCode, playerId, input.data);
+  });
+  socket.on("draw:fill", (payload: unknown) => {
+    const input = fillSchema.safeParse(payload);
+    if (input.success) drawing.fill(roomCode, playerId, input.data);
+  });
+  socket.on("draw:undo", () => drawing.undo(roomCode, playerId));
+  socket.on("draw:redo", () => drawing.redo(roomCode, playerId));
+  socket.on("draw:clear", () => drawing.clear(roomCode, playerId));
 
   socket.on("disconnect", () => rooms.disconnect(roomCode, playerId, conn));
   return true;

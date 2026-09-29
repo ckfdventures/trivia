@@ -4,6 +4,8 @@ import React, { useEffect, useMemo, useState } from "react";
 import { useParams, useRouter } from "next/navigation";
 import { ArrowLeft, Check, Copy, Crown, ShareNetwork, UserMinus } from "@phosphor-icons/react";
 import { AvatarDisc } from "../../components/scribblex/AvatarDisc";
+import { Canvas, type CanvasTool } from "../../components/scribblex/Canvas";
+import { Toolbar } from "../../components/scribblex/Toolbar";
 import {
   Button,
   Card,
@@ -24,6 +26,7 @@ import {
   ROUND_OPTIONS,
   TURN_SECONDS_OPTIONS,
 } from "../../lib/scribblex/constants";
+import { BRUSH_SIZES, PALETTE } from "../../lib/scribblex/drawing";
 import { clearSeat, loadSeat } from "../../lib/scribblex/profile";
 import type { RoomPlayer, StoredSeat } from "../../lib/scribblex/types";
 
@@ -45,6 +48,11 @@ export default function Lobby() {
   const [showCustom, setShowCustom] = useState(false);
   const [customDraft, setCustomDraft] = useState("");
 
+  // Drawing settings are local to this player — the server only sees the marks they make.
+  const [tool, setTool] = useState<CanvasTool>("pencil");
+  const [color, setColor] = useState<string>(PALETTE[6]);
+  const [brush, setBrush] = useState<number>(BRUSH_SIZES[1]);
+
   // No seat in this browser: send them through the profile step to get one.
   useEffect(() => {
     if (seat === null && code) {
@@ -52,7 +60,7 @@ export default function Lobby() {
     }
   }, [seat, code, router]);
 
-  const { connected, state, error, removed, actions, dismissError } = useScribbleRoom({
+  const { connected, state, error, removed, actions, canvas, dismissError } = useScribbleRoom({
     code,
     playerId: seat?.player_id,
     token: seat?.session_token,
@@ -178,6 +186,29 @@ export default function Lobby() {
             </div>
           </div>
         </Card>
+
+        {/* Shared doodle pad. While the room is a lobby anyone can draw on it; once a turn
+            starts the same canvas belongs to the drawer alone. */}
+        <section>
+          <SectionHeading action={<Chip tone="bubblegum">Everyone can draw</Chip>}>
+            Doodle while you wait
+          </SectionHeading>
+          <Canvas channel={canvas} enabled={state.phase === "LOBBY"} tool={tool} color={color} size={brush} />
+          <div className="mt-sx-sm">
+            <Toolbar
+              tool={tool}
+              color={color}
+              size={brush}
+              onTool={setTool}
+              onColor={setColor}
+              onSize={setBrush}
+              onUndo={canvas.undo}
+              onRedo={canvas.redo}
+              onClear={canvas.clear}
+              disabled={state.phase !== "LOBBY"}
+            />
+          </div>
+        </section>
 
         {/* Word decks */}
         <section>

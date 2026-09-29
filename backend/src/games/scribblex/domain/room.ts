@@ -1,3 +1,4 @@
+import { createCanvas, type CanvasState } from "./drawing.js";
 import {
   DEFAULT_MAX_PLAYERS,
   DEFAULT_ROUNDS,
@@ -93,6 +94,8 @@ export interface Room {
   autostartTimer: NodeJS.Timeout | null;
   /** Players removed by the host; they cannot rejoin this room. */
   kicked: Set<string>;
+  /** The shared drawing surface, as a replayable op log. */
+  canvas: CanvasState;
 }
 
 export function createRoom(params: {
@@ -118,6 +121,7 @@ export function createRoom(params: {
     autostartAt: null,
     autostartTimer: null,
     kicked: new Set(),
+    canvas: createCanvas(),
   };
 }
 
@@ -174,6 +178,19 @@ export function canStart(room: Room): { ok: boolean; reason: string | null } {
   }
   if (!hasWordSource(room)) return { ok: false, reason: "Pick at least one word deck." };
   return { ok: true, reason: null };
+}
+
+/**
+ * Who may draw right now.
+ *
+ * During a turn that is the drawer alone. In the lobby it is everyone: the canvas doubles as a
+ * shared doodle pad while players wait, which is also what makes drawing testable before the
+ * game loop exists.
+ */
+export function canDraw(room: Room, playerId: string): boolean {
+  if (room.phase === "LOBBY") return room.players.has(playerId);
+  if (room.phase === "DRAWING") return room.drawerOrder[room.drawerIndex] === playerId;
+  return false;
 }
 
 export function clearRoomTimers(room: Room): void {

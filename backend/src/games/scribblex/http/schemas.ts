@@ -2,6 +2,7 @@ import { z } from "zod";
 import {
   MAX_CHAT_LENGTH,
   MAX_DISPLAY_NAME_LENGTH,
+  MAX_STROKE_POINTS_PER_BATCH,
   MAX_MAX_PLAYERS,
   MAX_WORD_LENGTH,
   MIN_MAX_PLAYERS,
@@ -9,6 +10,7 @@ import {
   ROUND_OPTIONS,
   TURN_SECONDS_OPTIONS,
 } from "../domain/constants.js";
+import { isBrushSize, isPalette } from "../domain/drawing.js";
 
 /**
  * Every socket payload is parsed through one of these before it reaches a service. The server
@@ -57,3 +59,27 @@ export const readySchema = z.object({ ready: z.boolean() });
 export const kickSchema = z.object({ player_id: z.string().min(1).max(64) });
 
 export const chatSchema = z.object({ text: z.string().min(1).max(MAX_CHAT_LENGTH) });
+
+// ── Drawing ──────────────────────────────────────────────────────────────────
+
+const unit = z.number().min(0).max(1);
+const pointSchema = z.object({ x: unit, y: unit });
+
+/**
+ * A batch of points for one stroke. The same `id` arrives repeatedly while the pointer moves
+ * and each batch appends, so a long line never becomes one oversized message.
+ */
+export const strokeSchema = z.object({
+  id: z.string().min(1).max(64),
+  tool: z.enum(["pencil", "marker", "eraser"]),
+  color: z.string().refine(isPalette, "colour is not on the palette"),
+  size: z.number().refine(isBrushSize, "unknown brush size"),
+  points: z.array(pointSchema).min(1).max(MAX_STROKE_POINTS_PER_BATCH),
+});
+
+export const fillSchema = z.object({
+  id: z.string().min(1).max(64),
+  color: z.string().refine(isPalette, "colour is not on the palette"),
+  x: unit,
+  y: unit,
+});
