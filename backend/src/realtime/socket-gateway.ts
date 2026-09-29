@@ -1,6 +1,7 @@
 import type { Server as HttpServer } from "node:http";
 import { Server, type Socket } from "socket.io";
 import { z } from "zod";
+import type { OriginOption } from "../app.js";
 import type { RoomConnection } from "../domain/room.js";
 import { attachScribbleSocket } from "../games/scribblex/realtime/gateway.js";
 import type { ScribbleDrawingService } from "../games/scribblex/services/drawing.service.js";
@@ -96,7 +97,7 @@ export interface GatewayDeps {
 export function attachSocketGateway(
   httpServer: HttpServer,
   deps: GatewayDeps,
-  corsOrigin: string | string[],
+  corsOrigin: OriginOption,
 ): Server {
   const { presence, voice } = deps;
   const io = new Server(httpServer, { path: SOCKET_PATH, cors: { origin: corsOrigin } });

@@ -1,4 +1,4 @@
-import cors from "cors";
+import cors, { type CorsOptions } from "cors";
 import express, { type Express } from "express";
 import type { Container } from "./container.js";
 import { createScribbleRouter } from "./games/scribblex/http/routes.js";
@@ -8,9 +8,37 @@ import { createAuthRouter } from "./http/routes/auth.routes.js";
 import { createRoomRouter } from "./http/routes/room.routes.js";
 import { createThemeRouter } from "./http/routes/theme.routes.js";
 
-/** CORS origin option. Auth uses bearer tokens, not cookies, so credentials are never allowed cross-origin. */
-export function corsOrigin(origins: string[]): string | string[] {
-  return origins.includes("*") ? "*" : origins;
+/** What `cors` accepts as an origin rule: "*", a list, or a decision function. */
+export type OriginOption = NonNullable<CorsOptions["origin"]>;
+
+/** `https://app-*.vercel.app` → a regex. `*` matches within one label, never across dots. */
+function toPattern(glob: string): RegExp {
+  const escaped = glob.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
+  // Only `*` survives as a wildcard, and it cannot cross a dot — so `https://us-*.example.com`
+  // can never be satisfied by `https://us-evil.attacker.com.example.com`.
+  return new RegExp(`^${escaped.replace(/\\\*/g, "[^.]*")}$`);
+}
+
+/**
+ * CORS origin option. Auth uses bearer tokens, not cookies, so credentials are never allowed
+ * cross-origin.
+ *
+ * Entries may contain `*` as a wildcard, which is what makes preview deployments workable:
+ * every commit gets its own hostname, so they cannot be listed one by one. `CORS_ORIGINS=*`
+ * still means "anything" as before.
+ */
+export function corsOrigin(origins: string[]): OriginOption {
+  if (origins.includes("*")) return "*";
+
+  const exact = new Set(origins.filter((o) => !o.includes("*")));
+  const patterns = origins.filter((o) => o.includes("*")).map(toPattern);
+  if (patterns.length === 0) return [...exact];
+
+  return (origin, callback) => {
+    // No Origin header: same-origin, curl, or a server-to-server call. Not a CORS decision.
+    if (!origin) return callback(null, true);
+    callback(null, exact.has(origin) || patterns.some((p) => p.test(origin)));
+  };
 }
 
 export function createApp(c: Container): Express {
