@@ -60,6 +60,8 @@ export const kickSchema = z.object({ player_id: z.string().min(1).max(64) });
 
 export const chatSchema = z.object({ text: z.string().min(1).max(MAX_CHAT_LENGTH) });
 
+export const pickWordSchema = z.object({ index: z.number().int().min(0).max(8) });
+
 // ── Drawing ──────────────────────────────────────────────────────────────────
 
 const unit = z.number().min(0).max(1);

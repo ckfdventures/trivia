@@ -3,6 +3,7 @@ import { newId } from "../../../shared/ids.js";
 import type { ProfanityFilter } from "../../../services/profanity-filter.js";
 import { normalizeRoomCode } from "../domain/codes.js";
 import {
+  DRAWER_DISCONNECT_SKIP_MS,
   MAX_DISPLAY_NAME_LENGTH,
   MIN_CUSTOM_WORDS,
   PUBLIC_LOBBY_AUTOSTART_MIN_PLAYERS,
@@ -46,8 +47,10 @@ export type ConnectResult =
   | { ok: true; playerId: string }
   | { ok: false; message: string };
 
-/** Called when a public lobby's countdown expires. Wired to the game loop in a later change. */
+/** Called when a public lobby's countdown expires. */
 export type MatchStarter = (room: Room) => void;
+/** Called when the drawer has been gone long enough to forfeit their turn. */
+export type DrawerLostHandler = (room: Room) => void;
 
 export class ScribbleRoomService {
   /** room code -> player id -> secret token. Kept beside the room, never inside its state. */
@@ -58,6 +61,7 @@ export class ScribbleRoomService {
     private readonly notifier: ScribbleRoomNotifier,
     private readonly profanity: ProfanityFilter,
     private readonly onMatchStart: MatchStarter = () => {},
+    private readonly onDrawerLost: DrawerLostHandler = () => {},
   ) {}
 
   // ── Creating and joining ───────────────────────────────────────────────────
@@ -131,6 +135,12 @@ export class ScribbleRoomService {
     room.connections.set(playerId, conn);
     if (previous && previous !== conn) previous.close?.();
 
+    // They made it back before their turn was forfeit.
+    if (room.drawerOrder[room.drawerIndex] === playerId && room.drawerLostTimer) {
+      clearTimeout(room.drawerLostTimer);
+      room.drawerLostTimer = null;
+    }
+
     this.notifier.broadcastState(room);
     this.refreshAutostart(room);
     return { ok: true, playerId };
@@ -153,6 +163,18 @@ export class ScribbleRoomService {
     if (player.reconnectTimer) clearTimeout(player.reconnectTimer);
     player.reconnectTimer = setTimeout(() => this.dropSeat(room, playerId), RECONNECT_GRACE_MS);
     player.reconnectTimer.unref();
+
+    // Nobody should have to watch a blank canvas because the drawer closed their laptop.
+    const isDrawer = room.drawerOrder[room.drawerIndex] === playerId;
+    if (isDrawer && (room.phase === "DRAWING" || room.phase === "WORD_PICK")) {
+      if (room.drawerLostTimer) clearTimeout(room.drawerLostTimer);
+      room.drawerLostTimer = setTimeout(() => {
+        room.drawerLostTimer = null;
+        const stillGone = !room.players.get(playerId)?.connected;
+        if (this.store.get(room.code) === room && stillGone) this.onDrawerLost(room);
+      }, DRAWER_DISCONNECT_SKIP_MS);
+      room.drawerLostTimer.unref();
+    }
 
     this.notifier.broadcastState(room);
     this.refreshAutostart(room);

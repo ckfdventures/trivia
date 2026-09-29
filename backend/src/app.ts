@@ -27,7 +27,7 @@ export function createApp(c: Container): Express {
   api.use("/auth", createAuthRouter(c.authService, c.authMiddleware));
   api.use("/themes", createThemeRouter(c.themeService));
   api.use("/rooms", createRoomRouter(c.gameService, c.voiceService));
-  api.use("/scribblex", createScribbleRouter(c.scribbleRooms, c.scribbleStore));
+  api.use("/scribblex", createScribbleRouter(c.scribbleRooms, c.scribbleStore, c.scribbleDecks));
   api.use("/admin", createAdminRouter(c.themeService, c.questionFileParser, c.questionImport, c.authMiddleware));
 
   app.use("/api", api);

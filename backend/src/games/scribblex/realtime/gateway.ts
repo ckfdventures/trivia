@@ -2,7 +2,17 @@ import type { Socket } from "socket.io";
 import { HttpError } from "../../../shared/http-error.js";
 import type { Logger } from "../../../shared/logger.js";
 import type { RoomConnection } from "../domain/room.js";
-import { fillSchema, kickSchema, readySchema, settingsPatchSchema, strokeSchema } from "../http/schemas.js";
+import { CHAT_MIN_INTERVAL_MS } from "../domain/constants.js";
+import {
+  chatSchema,
+  fillSchema,
+  kickSchema,
+  pickWordSchema,
+  readySchema,
+  settingsPatchSchema,
+  strokeSchema,
+} from "../http/schemas.js";
+import type { ScribbleMatchService } from "../services/match.service.js";
 import type { ScribbleDrawingService } from "../services/drawing.service.js";
 import { ScribbleEvents, type ScribbleRoomNotifier } from "../services/room-notifier.js";
 import type { ScribbleRoomService } from "../services/room.service.js";
@@ -55,6 +65,7 @@ export function attachScribbleSocket(
   rooms: ScribbleRoomService,
   notifier: ScribbleRoomNotifier,
   drawing: ScribbleDrawingService,
+  match: ScribbleMatchService,
   logger: Logger,
 ): boolean {
   const { code, playerId, token } = readHandshake(socket);
@@ -73,8 +84,10 @@ export function attachScribbleSocket(
   }
   const roomCode = room.code;
   notifier.sendState(conn, room);
-  // A client arriving mid-drawing needs the canvas as it already stands.
+  // A client arriving mid-turn needs the canvas as it already stands, and whatever of the
+  // secret word it is entitled to.
   drawing.sync(room, conn);
+  match.syncPlayer(room, playerId, conn);
 
   /** Run a host/player action, reporting a refusal back to the caller rather than throwing. */
   const guard = (action: () => void) => {
@@ -122,6 +135,27 @@ export function attachScribbleSocket(
     const input = fillSchema.safeParse(payload);
     if (input.success) drawing.fill(roomCode, playerId, input.data);
   });
+  socket.on("room:start", () => guard(() => match.start(roomCode, playerId)));
+  socket.on("room:playAgain", () => guard(() => match.playAgain(roomCode, playerId)));
+
+  socket.on("turn:pickWord", (payload: unknown) => {
+    const input = pickWordSchema.safeParse(payload);
+    if (!input.success) return;
+    guard(() => match.pickWord(roomCode, playerId, input.data.index));
+  });
+
+  // Chat is rate limited per socket; a flood is dropped rather than answered, so spamming
+  // costs the sender nothing but achieves nothing either.
+  let lastChatAt = 0;
+  socket.on("chat:guess", (payload: unknown) => {
+    const input = chatSchema.safeParse(payload);
+    if (!input.success) return;
+    const now = Date.now();
+    if (now - lastChatAt < CHAT_MIN_INTERVAL_MS) return;
+    lastChatAt = now;
+    guard(() => match.guess(roomCode, playerId, input.data.text));
+  });
+
   socket.on("draw:undo", () => drawing.undo(roomCode, playerId));
   socket.on("draw:redo", () => drawing.redo(roomCode, playerId));
   socket.on("draw:clear", () => drawing.clear(roomCode, playerId));

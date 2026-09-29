@@ -22,6 +22,7 @@ async function main(): Promise<void> {
       scribbleRooms: container.scribbleRooms,
       scribbleNotifier: container.scribbleNotifier,
       scribbleDrawing: container.scribbleDrawing,
+      scribbleMatch: container.scribbleMatch,
       logger,
     },
     corsOrigin(config.corsOrigins),

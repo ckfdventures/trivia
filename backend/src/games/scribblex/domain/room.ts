@@ -82,14 +82,27 @@ export interface Room {
   connections: Map<string, RoomConnection>;
   phase: RoomPhase;
 
-  // ── Match progress. Unused until the game loop lands, but owned by the room from the start.
+  // ── Match progress
   round: number;
   drawerOrder: string[];
   drawerIndex: number;
+  /** The secret word. Never enters a broadcast — only targeted `turn:word` events. */
   word: string | null;
+  /** Indices of letters given away as hints so far. */
   revealedIdx: number[];
   endsAt: number | null;
+  /** Normalised words already played, so a match does not repeat itself. */
   usedWords: Set<string>;
+  /** Offered to the drawer during WORD_PICK; nobody else ever sees them. */
+  wordChoices: string[];
+  turnStartedAt: number | null;
+  /** Who has guessed this turn, and what it earned them. */
+  turnGuesses: Map<string, number>;
+  /** Drives the current phase to the next one. */
+  phaseTimer: NodeJS.Timeout | null;
+  hintTimers: NodeJS.Timeout[];
+  /** Runs when the drawer has been gone long enough to forfeit the turn. */
+  drawerLostTimer: NodeJS.Timeout | null;
 
   /** Countdown that auto-starts a public lobby once enough players are waiting. */
   autostartAt: number | null;
@@ -120,6 +133,12 @@ export function createRoom(params: {
     revealedIdx: [],
     endsAt: null,
     usedWords: new Set(),
+    wordChoices: [],
+    turnStartedAt: null,
+    turnGuesses: new Map(),
+    phaseTimer: null,
+    hintTimers: [],
+    drawerLostTimer: null,
     autostartAt: null,
     autostartTimer: null,
     kicked: new Set(),
@@ -195,9 +214,32 @@ export function canDraw(room: Room, playerId: string): boolean {
   return false;
 }
 
+/** The player whose turn it is, if any. */
+export function currentDrawer(room: Room): Player | null {
+  const id = room.drawerOrder[room.drawerIndex];
+  return id ? room.players.get(id) ?? null : null;
+}
+
+/** Everyone expected to guess this turn: present, connected, and not the one drawing. */
+export function activeGuessers(room: Room): Player[] {
+  const drawerId = room.drawerOrder[room.drawerIndex];
+  return [...room.players.values()].filter((p) => p.id !== drawerId && p.connected);
+}
+
+/** Stop whatever is driving the current phase. */
+export function clearPhaseTimers(room: Room): void {
+  if (room.phaseTimer) clearTimeout(room.phaseTimer);
+  room.phaseTimer = null;
+  for (const timer of room.hintTimers) clearTimeout(timer);
+  room.hintTimers = [];
+  if (room.drawerLostTimer) clearTimeout(room.drawerLostTimer);
+  room.drawerLostTimer = null;
+}
+
 export function clearRoomTimers(room: Room): void {
   if (room.autostartTimer) clearTimeout(room.autostartTimer);
   room.autostartTimer = null;
+  clearPhaseTimers(room);
   for (const player of room.players.values()) {
     if (player.reconnectTimer) clearTimeout(player.reconnectTimer);
     player.reconnectTimer = null;

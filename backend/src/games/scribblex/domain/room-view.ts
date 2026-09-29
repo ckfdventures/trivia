@@ -1,5 +1,6 @@
 import { formatRoomCode } from "./codes.js";
 import { canStart, playersByArrival, type Player, type Room } from "./room.js";
+import { maskWord } from "./words.js";
 
 /**
  * The room snapshot sent to clients.
@@ -59,6 +60,10 @@ export function toPublicRoomState(room: Room) {
     round: room.round,
     total_rounds: room.settings.rounds,
     drawer_id: room.drawerOrder[room.drawerIndex] ?? null,
+    // Blanks plus whatever hints have been given. Safe for everyone — the word itself only
+    // ever travels in a targeted `turn:word`.
+    word_mask: room.word ? maskWord(room.word, room.revealedIdx) : null,
+    word_length: room.word?.length ?? 0,
     ends_at: room.endsAt,
     autostart_at: room.autostartAt,
     can_start: start.ok,

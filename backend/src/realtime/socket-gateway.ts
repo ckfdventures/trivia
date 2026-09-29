@@ -4,6 +4,7 @@ import { z } from "zod";
 import type { RoomConnection } from "../domain/room.js";
 import { attachScribbleSocket } from "../games/scribblex/realtime/gateway.js";
 import type { ScribbleDrawingService } from "../games/scribblex/services/drawing.service.js";
+import type { ScribbleMatchService } from "../games/scribblex/services/match.service.js";
 import type { ScribbleRoomNotifier } from "../games/scribblex/services/room-notifier.js";
 import type { ScribbleRoomService } from "../games/scribblex/services/room.service.js";
 import type { PresenceService } from "../services/presence.service.js";
@@ -80,6 +81,7 @@ export interface GatewayDeps {
   scribbleRooms: ScribbleRoomService;
   scribbleNotifier: ScribbleRoomNotifier;
   scribbleDrawing: ScribbleDrawingService;
+  scribbleMatch: ScribbleMatchService;
   logger: Logger;
 }
 
@@ -115,6 +117,7 @@ export function attachSocketGateway(
           deps.scribbleRooms,
           deps.scribbleNotifier,
           deps.scribbleDrawing,
+          deps.scribbleMatch,
           deps.logger,
         )
       ) {

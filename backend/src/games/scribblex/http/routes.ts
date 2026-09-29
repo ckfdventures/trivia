@@ -5,6 +5,7 @@ import { formatRoomCode } from "../domain/codes.js";
 import { toPublicRoomState, toRoomSummary } from "../domain/room-view.js";
 import type { Room } from "../domain/room.js";
 import type { PlayerSession, ScribbleRoomService } from "../services/room.service.js";
+import type { ScribbleDeckService } from "../services/deck.service.js";
 import type { ScribbleRoomStore } from "../services/room-store.js";
 import { createRoomSchema, profileBodySchema, type profileSchema } from "./schemas.js";
 import type { z } from "zod";
@@ -31,8 +32,17 @@ function toProfile(input: z.infer<typeof profileSchema>) {
  * Creating and joining are REST so the join form gets real status codes — 404 for an unknown
  * code, 409 for full or already started. Everything live happens over the socket instead.
  */
-export function createScribbleRouter(rooms: ScribbleRoomService, store: ScribbleRoomStore): Router {
+export function createScribbleRouter(
+  rooms: ScribbleRoomService,
+  store: ScribbleRoomStore,
+  decks: ScribbleDeckService,
+): Router {
   const router = Router();
+
+  /** The deck catalogue the lobby offers. Public: choosing decks needs no account. */
+  router.get("/decks", async (_req, res) => {
+    res.json(await decks.list());
+  });
 
   /** Public rooms a stranger can join, for the home page browser. */
   router.get("/rooms", (_req, res) => {
