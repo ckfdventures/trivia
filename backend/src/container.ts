@@ -1,5 +1,13 @@
 import type { Db } from "mongodb";
 import type { AppConfig } from "./config/env.js";
+import { ScribbleRoomCleanupJob } from "./games/scribblex/jobs/room-cleanup.job.js";
+import { MongoDeckRepository } from "./games/scribblex/repositories/deck.repository.js";
+import { ScribbleDeckService } from "./games/scribblex/services/deck.service.js";
+import { ScribbleDrawingService } from "./games/scribblex/services/drawing.service.js";
+import { ScribbleMatchService } from "./games/scribblex/services/match.service.js";
+import { ScribbleRoomNotifier } from "./games/scribblex/services/room-notifier.js";
+import { ScribbleRoomService } from "./games/scribblex/services/room.service.js";
+import { ScribbleRoomStore } from "./games/scribblex/services/room-store.js";
 import { createAuthMiddleware } from "./http/middleware/auth.js";
 import { RoomCleanupJob } from "./jobs/room-cleanup.job.js";
 import { MongoQuestionRepository } from "./repositories/question.repository.js";
@@ -51,6 +59,25 @@ export function createContainer(config: AppConfig, db: Db, logger: Logger, optio
     : new StunOnlyIceServers();
   const voiceService = new VoiceService(roomStore, iceServers, logger);
 
+  // ScribbleX keeps its own room registry; the two games share only the profanity filter
+  // until the room layer is generalised (DECISIONS.md D5).
+  const scribbleStore = new ScribbleRoomStore();
+  const scribbleNotifier = new ScribbleRoomNotifier(scribbleStore);
+  const deckRepo = new MongoDeckRepository(db);
+  const scribbleDecks = new ScribbleDeckService(deckRepo);
+  const scribbleMatch = new ScribbleMatchService(scribbleStore, scribbleNotifier, scribbleDecks, logger);
+  // The room service drives lobby lifecycle and calls back into the match when a public
+  // lobby's countdown expires or a drawer stays gone — a one-way hook, so the two services
+  // do not have to know about each other's types.
+  const scribbleRooms = new ScribbleRoomService(
+    scribbleStore,
+    scribbleNotifier,
+    profanity,
+    (room) => scribbleMatch.autoStart(room),
+    (room) => scribbleMatch.onDrawerLost(room),
+  );
+  const scribbleDrawing = new ScribbleDrawingService(scribbleStore, scribbleNotifier);
+
   return {
     config,
     logger,
@@ -63,11 +90,22 @@ export function createContainer(config: AppConfig, db: Db, logger: Logger, optio
     gameService,
     presence,
     voiceService,
-    jobs: [new RoomCleanupJob(roomStore, gameService, logger)],
+    scribbleStore,
+    scribbleNotifier,
+    scribbleRooms,
+    scribbleDrawing,
+    scribbleDecks,
+    scribbleMatch,
+    jobs: [
+      new RoomCleanupJob(roomStore, gameService, logger),
+      new ScribbleRoomCleanupJob(scribbleStore, logger),
+    ],
     /** One-time startup work: indexes and the admin account. */
     async initialize(): Promise<void> {
-      await Promise.all([themeRepo.ensureIndexes(), questionRepo.ensureIndexes()]);
+      await Promise.all([themeRepo.ensureIndexes(), questionRepo.ensureIndexes(), deckRepo.ensureIndexes()]);
       await authService.seedAdmin(config.adminEmail, config.adminPassword);
+      const seeded = await deckRepo.seedIfEmpty();
+      if (seeded > 0) logger.info(`seeded ${seeded} ScribbleX word decks`);
     },
   };
 }

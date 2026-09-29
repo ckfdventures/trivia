@@ -153,6 +153,38 @@ validation the deck uploader can follow.
 
 ---
 
+## D10 — A player's public id is not their credential
+
+**Decided:** Each ScribbleX player has two identifiers: a public `player_id` that appears in
+room state, and a secret `session_token` issued by the server that never appears in any
+broadcast. The socket handshake presents both.
+
+**Overrides:** PRD §7, where the browser keeps one persistent `playerId` in `localStorage` and
+authenticates with it.
+
+**Why:** the PRD's `playerId` is also shown to every other player in the room snapshot. If it
+were the credential, any player could take over another's seat — and their score — simply by
+repeating an id they had already been sent. The trivia game already separates these two roles
+(`player.id` vs `player.session_token`); ScribbleX follows it.
+
+A test asserts that no session token appears in a serialised room snapshot.
+
+---
+
+## D11 — Rooms are created over REST, played over the socket
+
+**Decided:** `POST /api/scribblex/rooms`, `/rooms/:code/join` and `/rooms/quick-play` are REST.
+Everything live — settings changes, ready state, kicks, presence — travels over the socket.
+
+**Overrides:** PRD §7, which lists `room:create` and `room:join` as socket events.
+
+**Why:** joining can fail in ways the form has to explain — unknown code, room full, match
+already started — and HTTP status codes carry that cleanly (404, 409) through the error
+handling the app already has. Doing it over the socket would need a pre-authentication socket
+state that exists only to be upgraded moments later. It also matches how trivia works.
+
+---
+
 ## Pending
 
 Open items that need a decision before the work they block can start.
