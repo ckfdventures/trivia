@@ -27,6 +27,7 @@ export const routes = {
     profile: "/scribblex/avatar",
     /** Public rooms anyone can drop into. */
     browse: "/scribblex/rooms",
+    rules: "/scribblex/rules",
     room: (code: string) => `/scribblex/room/${code}`,
   },
 

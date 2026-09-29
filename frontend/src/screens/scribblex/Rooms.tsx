@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import { ArrowClockwise, ArrowLeft, Lightning, Users } from "@phosphor-icons/react";
 import { Button, Card, Chip, Toast } from "../../components/scribblex/ui";
 import { errorMessage } from "../../lib/api";
+import { ScribbleNav } from "../../components/scribblex/ScribbleNav";
 import { routes } from "../../lib/routes";
 import { listPublicRooms } from "../../lib/scribblex/api";
 import type { RoomSummary } from "../../lib/scribblex/types";
@@ -59,7 +60,7 @@ export default function Rooms() {
   const joinable = rooms.filter((r) => r.joinable).length;
 
   return (
-    <div className="min-h-screen sx-dots pb-sx-xl">
+    <div className="min-h-screen sx-dots pb-28">
       <header className="mx-auto w-full max-w-2xl px-sx-md pt-sx-md flex items-center justify-between gap-sx-sm">
         <button
           onClick={() => router.push(routes.home)}
@@ -108,6 +109,7 @@ export default function Rooms() {
       </main>
 
       {error && <Toast message={error} onDismiss={() => setError(null)} />}
+      <ScribbleNav />
     </div>
   );
 }

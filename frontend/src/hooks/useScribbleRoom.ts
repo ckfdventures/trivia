@@ -6,6 +6,7 @@ import { BACKEND_URL, SOCKET_PATH } from "../lib/api";
 import { mergeStroke, type DrawOp, type FillOp, type StrokeOp } from "../lib/scribblex/drawing";
 import { addXp, XP_PER_CORRECT_GUESS, XP_PER_MATCH } from "../lib/scribblex/profile";
 import { CHAT_MIN_INTERVAL_MS } from "../lib/scribblex/constants";
+import { playSound } from "../lib/scribblex/sound";
 import type {
   ChatMessage,
   MatchStandings,
@@ -145,6 +146,7 @@ export function useScribbleRoom({ code, playerId, token }: Options): ScribbleRoo
       // A new turn wipes what the last one revealed, including this player's copy of the word.
       setTurn({ word: null, mask: data.word_mask ?? [], choices: [], ended: null, standings: null });
       setChat([]);
+      playSound("turnStart");
     });
     socket.on("turn:wordChoices", (data: { words: string[] }) => {
       setTurn((t) => ({ ...t, choices: data.words ?? [] }));
@@ -157,16 +159,27 @@ export function useScribbleRoom({ code, playerId, token }: Options): ScribbleRoo
     });
     socket.on("turn:end", (data: TurnEnd) => {
       setTurn((t) => ({ ...t, ended: data, word: data.word, choices: [] }));
+      // Only when the turn ran out with nobody getting it. Otherwise the chime already played,
+      // and following a win with a losing sound reads as the game disagreeing with itself.
+      if ((data.deltas ?? []).length === 0) playSound("timeUp");
     });
     socket.on("match:end", (data: MatchStandings) => {
       setTurn((t) => ({ ...t, standings: data, ended: null, choices: [] }));
+      playSound("matchEnd");
       // Progression is awarded here, where each event arrives exactly once, rather than from a
       // render that could run again. It lives in this browser only (PRD §13.7).
       addXp(XP_PER_MATCH);
     });
     socket.on("chat:message", (data: ChatMessage) => {
       setChat((lines) => [...lines, data].slice(-MAX_CHAT_LINES));
-      if (data.kind === "correct" && data.from?.id === playerId) addXp(XP_PER_CORRECT_GUESS);
+      if (data.kind !== "correct") return;
+      // Your own success and someone else's are different events to a player.
+      if (data.from?.id === playerId) {
+        addXp(XP_PER_CORRECT_GUESS);
+        playSound("correct");
+      } else {
+        playSound("someoneGot");
+      }
     });
 
     // ── Canvas

@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { ArrowLeft } from "@phosphor-icons/react";
 import { GAMES } from "../../lib/brand";
+import { ScribbleNav } from "../../components/scribblex/ScribbleNav";
 import { routes } from "../../lib/routes";
 
 /**
@@ -14,7 +15,7 @@ import { routes } from "../../lib/routes";
  */
 export default function ScribbleXIntro() {
   return (
-    <div className="min-h-screen sx-dots">
+    <div className="min-h-screen sx-dots pb-28">
       <header className="mx-auto w-full max-w-3xl px-sx-md pt-sx-md">
         <Link
           href={routes.home}
@@ -81,6 +82,7 @@ export default function ScribbleXIntro() {
           Play Trivia
         </Link>
       </main>
+          <ScribbleNav />
     </div>
   );
 }

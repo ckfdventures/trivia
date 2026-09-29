@@ -26,6 +26,7 @@ import {
   TURN_SECONDS_OPTIONS,
 } from "../../lib/scribblex/constants";
 import { BRUSH_SIZES, PALETTE } from "../../lib/scribblex/drawing";
+import { savePreset } from "../../lib/scribblex/profile";
 import type { RoomPlayer } from "../../lib/scribblex/types";
 
 interface Props {
@@ -48,6 +49,7 @@ export default function Lobby({ room, meId, onLeave }: Props) {
   const [copied, setCopied] = useState(false);
   const [showCustom, setShowCustom] = useState(false);
   const [customDraft, setCustomDraft] = useState("");
+  const [presetSaved, setPresetSaved] = useState(false);
 
   // Drawing settings are local to this player — the server only sees the marks they make.
   const [tool, setTool] = useState<CanvasTool>("pencil");
@@ -372,6 +374,26 @@ export default function Lobby({ room, meId, onLeave }: Props) {
               >
                 Start the match
               </Button>
+              <button
+                onClick={() => {
+                  savePreset({
+                    decks: settings!.decks,
+                    rounds: settings!.rounds,
+                    turn_seconds: settings!.turn_seconds,
+                    max_players: settings!.max_players,
+                    letter_hints: settings!.letter_hints,
+                    three_word_choice: settings!.three_word_choice,
+                    gentle_spelling: settings!.gentle_spelling,
+                    is_private: settings!.is_private,
+                  });
+                  setPresetSaved(true);
+                  window.setTimeout(() => setPresetSaved(false), 2200);
+                }}
+                data-testid="sx-save-preset"
+                className="mt-2 w-full text-center font-sx-display text-sx-label-md text-sx-on-surface-variant hover:text-sx-primary"
+              >
+                {presetSaved ? "Saved — your next room starts like this" : "Save these settings for next time"}
+              </button>
               {!state.can_start && state.start_blocked_reason && (
                 <p
                   data-testid="sx-start-blocked"

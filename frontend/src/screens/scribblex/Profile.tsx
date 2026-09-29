@@ -15,6 +15,7 @@ import {
   levelFor,
   levelProgress,
   XP_PER_LEVEL,
+  loadPreset,
   loadProfile,
   loadXp,
   randomProfile,
@@ -76,7 +77,8 @@ export default function Profile() {
     try {
       let seat: Seat;
       if (intent === "join") seat = await joinRoom(code, clean);
-      else if (intent === "create") seat = await createRoom(clean);
+      // A host's saved settings, so they do not rebuild the same room every time.
+      else if (intent === "create") seat = await createRoom(clean, loadPreset() ?? undefined);
       else seat = await quickPlay(clean);
 
       saveSeat({ code: seat.code, player_id: seat.player_id, session_token: seat.session_token });

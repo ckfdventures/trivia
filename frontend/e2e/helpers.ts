@@ -70,6 +70,11 @@ export async function drawHorizontalLine(
   { fromRatio = 0.1, toRatio = 0.9, yRatio = 0.5, steps = 40 } = {},
 ): Promise<{ y: number; x0: number; x1: number }> {
   const canvas = page.getByTestId("sx-canvas");
+  // Centre it first. Screens here have a fixed bar pinned to the bottom, so part of the canvas
+  // can sit underneath it — a pointer aimed there would land on the bar, not the drawing.
+  await canvas.evaluate((el) => el.scrollIntoView({ block: "center", behavior: "instant" as ScrollBehavior }));
+  await page.waitForTimeout(80);
+
   const box = await canvas.boundingBox();
   if (!box) throw new Error("canvas has no box");
 

@@ -1,4 +1,4 @@
-import type { Profile, StoredSeat } from "./types";
+import type { Profile, SettingsPatch, StoredSeat } from "./types";
 
 /**
  * The player's identity, kept entirely in the browser — there are no accounts (PRD §2).
@@ -84,6 +84,7 @@ export function randomProfile(xp = 0): Profile {
 
 const PROFILE_KEY = "sx_profile";
 const XP_KEY = "sx_xp";
+const PRESET_KEY = "sx_preset";
 const seatKey = (code: string) => `sx_seat_${code.toUpperCase()}`;
 
 function read<T>(key: string): T | null {
@@ -114,6 +115,15 @@ export const addXp = (amount: number): number => {
   write(XP_KEY, next);
   return next;
 };
+
+/**
+ * The host's last saved room settings, offered when they open the next one.
+ *
+ * A host who has settled on five rounds and gentle spelling should not have to set them again
+ * every time they start a game.
+ */
+export const loadPreset = (): SettingsPatch | null => read<SettingsPatch>(PRESET_KEY);
+export const savePreset = (settings: SettingsPatch): void => write(PRESET_KEY, settings);
 
 export const loadSeat = (code: string): StoredSeat | null => read<StoredSeat>(seatKey(code));
 export const saveSeat = (seat: StoredSeat): void => write(seatKey(seat.code), seat);
