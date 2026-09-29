@@ -29,24 +29,4 @@ export const MAX_MAX_PLAYERS = 8;
 export const MIN_PLAYERS_TO_START = 2;
 
 export const MIN_CUSTOM_WORDS = 10;
-
-export interface DeckOption {
-  id: string;
-  name: string;
-  blurb: string;
-  emoji: string;
-}
-
-/**
- * The deck catalogue, hard-coded until the admin word-deck uploader lands and decks become
- * real records (DECISIONS.md D9). Names and blurbs come from the Stitch lobby design; their
- * content still has to be re-cut for the Gen Z audience (D3) when the words themselves exist.
- */
-export const DECKS: DeckOption[] = [
-  { id: "cute-animals", name: "Cute Animals", blurb: "Puppies, hamsters, dinosaurs", emoji: "🐾" },
-  { id: "yummy-treats", name: "Yummy Treats", blurb: "Pancakes, cupcakes, smoothies", emoji: "🍕" },
-  { id: "everyday-magic", name: "Everyday Magic", blurb: "Backpacks, skateboards, treehouses", emoji: "✨" },
-  { id: "cartoons-heroes", name: "Cartoons & Heroes", blurb: "Superheroes, fairy tales", emoji: "🦸" },
-];
-
-export const findDeck = (id: string): DeckOption | undefined => DECKS.find((d) => d.id === id);
+export const MAX_CHAT_LENGTH = 100;

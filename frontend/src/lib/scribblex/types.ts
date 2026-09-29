@@ -60,11 +60,22 @@ export interface RoomState {
   round: number;
   total_rounds: number;
   drawer_id: string | null;
+  /** Blanks plus any revealed hints. The word itself never travels in room state. */
+  word_mask: (string | null)[] | null;
+  word_length: number;
   ends_at: number | null;
   autostart_at: number | null;
   can_start: boolean;
   start_blocked_reason: string | null;
   server_now: number;
+}
+
+export interface DeckSummary {
+  id: string;
+  name: string;
+  blurb: string;
+  emoji: string;
+  word_count: number;
 }
 
 export interface RoomSummary {
@@ -105,4 +116,55 @@ export interface ProfilePayload {
   name: string;
   avatar_id: string;
   hat_id: string | null;
+}
+
+// ── Match events ─────────────────────────────────────────────────────────────
+
+export interface TurnStart {
+  drawer_id: string | null;
+  /** One entry per character: a revealed letter, a space between words, or null. */
+  word_mask: (string | null)[];
+  word_length: number;
+  ends_at: number;
+  round: number;
+  total_rounds: number;
+  server_now: number;
+}
+
+export interface ScoreDelta {
+  player_id: string;
+  points: number;
+  /** Set on the drawer's own line, which is earned differently from a guess. */
+  as_drawer?: boolean;
+}
+
+export interface TurnEnd {
+  word: string;
+  ends_at: number;
+  deltas: ScoreDelta[];
+}
+
+export interface Standing {
+  player_id: string;
+  name: string;
+  avatar_id: string;
+  hat_id: string | null;
+  score: number;
+  rank: number;
+  tied: boolean;
+}
+
+export interface MatchStandings {
+  standings: Standing[];
+  ends_at: number;
+}
+
+export type ChatKind = "chat" | "system" | "close" | "correct";
+
+export interface ChatMessage {
+  kind: ChatKind;
+  /** Null for messages from the game itself rather than a player. */
+  from: { id: string; name: string } | null;
+  text: string;
+  points?: number;
 }

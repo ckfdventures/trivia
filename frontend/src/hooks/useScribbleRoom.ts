@@ -4,7 +4,14 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
 import { BACKEND_URL, SOCKET_PATH } from "../lib/api";
 import { mergeStroke, type DrawOp, type FillOp, type StrokeOp } from "../lib/scribblex/drawing";
-import type { RoomState, SettingsPatch } from "../lib/scribblex/types";
+import type {
+  ChatMessage,
+  MatchStandings,
+  RoomState,
+  SettingsPatch,
+  TurnEnd,
+  TurnStart,
+} from "../lib/scribblex/types";
 
 interface Options {
   code: string;
@@ -17,6 +24,24 @@ export interface RoomActions {
   setReady(ready: boolean): void;
   kick(playerId: string): void;
   leave(): void;
+  start(): void;
+  playAgain(): void;
+  pickWord(index: number): void;
+  guess(text: string): void;
+}
+
+/** Everything about the turn in progress that this player is allowed to know. */
+export interface TurnView {
+  /** The answer — only ever set once this player has drawn it or guessed it. */
+  word: string | null;
+  /** Per character: a letter if revealed, a space between words, otherwise null. */
+  mask: (string | null)[];
+  /** The three options, when it is this player's turn to choose. */
+  choices: string[];
+  /** Set during REVEAL: the word and who scored what. */
+  ended: TurnEnd | null;
+  /** Set at the end of the match. */
+  standings: MatchStandings | null;
 }
 
 /** What changed on the canvas, so a painter can decide between an incremental draw and a replay. */
@@ -42,8 +67,13 @@ export interface ScribbleRoom {
   removed: boolean;
   actions: RoomActions;
   canvas: CanvasChannel;
+  turn: TurnView;
+  chat: ChatMessage[];
   dismissError(): void;
 }
+
+/** Enough scrollback to read the room; older lines fall off rather than growing forever. */
+const MAX_CHAT_LINES = 120;
 
 /**
  * Live connection to one ScribbleX room: lobby state and the shared canvas over one socket.
@@ -62,6 +92,14 @@ export function useScribbleRoom({ code, playerId, token }: Options): ScribbleRoo
   const [state, setState] = useState<RoomState | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [removed, setRemoved] = useState(false);
+  const [chat, setChat] = useState<ChatMessage[]>([]);
+  const [turn, setTurn] = useState<TurnView>({
+    word: null,
+    mask: [],
+    choices: [],
+    ended: null,
+    standings: null,
+  });
 
   const socketRef = useRef<Socket | null>(null);
   const opsRef = useRef<DrawOp[]>([]);
@@ -93,6 +131,31 @@ export function useScribbleRoom({ code, playerId, token }: Options): ScribbleRoo
     socket.on("room:kicked", () => {
       setRemoved(true);
       socket.close();
+    });
+
+    // ── Match
+    socket.on("turn:start", (data: TurnStart) => {
+      // A new turn wipes what the last one revealed, including this player's copy of the word.
+      setTurn({ word: null, mask: data.word_mask ?? [], choices: [], ended: null, standings: null });
+      setChat([]);
+    });
+    socket.on("turn:wordChoices", (data: { words: string[] }) => {
+      setTurn((t) => ({ ...t, choices: data.words ?? [] }));
+    });
+    socket.on("turn:word", (data: { word: string }) => {
+      setTurn((t) => ({ ...t, word: data.word, choices: [] }));
+    });
+    socket.on("turn:hint", (data: { word_mask: (string | null)[] }) => {
+      setTurn((t) => ({ ...t, mask: data.word_mask ?? t.mask }));
+    });
+    socket.on("turn:end", (data: TurnEnd) => {
+      setTurn((t) => ({ ...t, ended: data, word: data.word, choices: [] }));
+    });
+    socket.on("match:end", (data: MatchStandings) => {
+      setTurn((t) => ({ ...t, standings: data, ended: null, choices: [] }));
+    });
+    socket.on("chat:message", (data: ChatMessage) => {
+      setChat((lines) => [...lines, data].slice(-MAX_CHAT_LINES));
     });
 
     // ── Canvas
@@ -140,6 +203,10 @@ export function useScribbleRoom({ code, playerId, token }: Options): ScribbleRoo
       setReady: (ready) => emit("room:ready", { ready }),
       kick: (id) => emit("room:kick", { player_id: id }),
       leave: () => emit("room:leave"),
+      start: () => emit("room:start"),
+      playAgain: () => emit("room:playAgain"),
+      pickWord: (index) => emit("turn:pickWord", { index }),
+      guess: (text) => emit("chat:guess", { text }),
     }),
     [emit],
   );
@@ -174,5 +241,5 @@ export function useScribbleRoom({ code, playerId, token }: Options): ScribbleRoo
 
   const dismissError = useCallback(() => setError(null), []);
 
-  return { connected, state, error, removed, actions, canvas, dismissError };
+  return { connected, state, error, removed, actions, canvas, turn, chat, dismissError };
 }

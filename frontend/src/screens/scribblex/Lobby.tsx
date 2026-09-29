@@ -1,7 +1,6 @@
 "use client";
 
-import React, { useEffect, useMemo, useState } from "react";
-import { useParams, useRouter } from "next/navigation";
+import React, { useMemo, useState } from "react";
 import { ArrowLeft, Check, Copy, Crown, ShareNetwork, UserMinus } from "@phosphor-icons/react";
 import { AvatarDisc } from "../../components/scribblex/AvatarDisc";
 import { Canvas, type CanvasTool } from "../../components/scribblex/Canvas";
@@ -16,10 +15,10 @@ import {
   Toast,
   Toggle,
 } from "../../components/scribblex/ui";
-import { useScribbleRoom } from "../../hooks/useScribbleRoom";
+import { useDecks } from "../../hooks/useDecks";
+import type { ScribbleRoom } from "../../hooks/useScribbleRoom";
 import { routes } from "../../lib/routes";
 import {
-  DECKS,
   MAX_MAX_PLAYERS,
   MIN_CUSTOM_WORDS,
   MIN_MAX_PLAYERS,
@@ -27,8 +26,13 @@ import {
   TURN_SECONDS_OPTIONS,
 } from "../../lib/scribblex/constants";
 import { BRUSH_SIZES, PALETTE } from "../../lib/scribblex/drawing";
-import { clearSeat, loadSeat } from "../../lib/scribblex/profile";
-import type { RoomPlayer, StoredSeat } from "../../lib/scribblex/types";
+import type { RoomPlayer } from "../../lib/scribblex/types";
+
+interface Props {
+  room: ScribbleRoom;
+  meId: string | undefined;
+  onLeave(): void;
+}
 
 /**
  * The room lobby: share the code, agree the rules, wait for everyone.
@@ -37,13 +41,10 @@ import type { RoomPlayer, StoredSeat } from "../../lib/scribblex/types";
  * rules are always legible rather than hidden behind a permission. Every change round-trips
  * through the server and comes back as a fresh snapshot — nothing is applied optimistically.
  */
-export default function Lobby() {
-  const router = useRouter();
-  const params = useParams<{ code?: string }>();
-  const code = (params.code ?? "").toUpperCase();
-
-  // Client-only screen (see room/[code]/LobbyClient.tsx), so the seat resolves synchronously.
-  const [seat] = useState<StoredSeat | null>(() => (code ? loadSeat(code) : null));
+export default function Lobby({ room, meId, onLeave }: Props) {
+  const { connected, state, error, actions, canvas, dismissError } = room;
+  const code = state?.code ?? "";
+  const { decks, loading: decksLoading, failed: decksFailed } = useDecks();
   const [copied, setCopied] = useState(false);
   const [showCustom, setShowCustom] = useState(false);
   const [customDraft, setCustomDraft] = useState("");
@@ -53,29 +54,7 @@ export default function Lobby() {
   const [color, setColor] = useState<string>(PALETTE[6]);
   const [brush, setBrush] = useState<number>(BRUSH_SIZES[1]);
 
-  // No seat in this browser: send them through the profile step to get one.
-  useEffect(() => {
-    if (seat === null && code) {
-      router.replace(`${routes.scribblex.profile}?intent=join&code=${encodeURIComponent(code)}`);
-    }
-  }, [seat, code, router]);
-
-  const { connected, state, error, removed, actions, canvas, dismissError } = useScribbleRoom({
-    code,
-    playerId: seat?.player_id,
-    token: seat?.session_token,
-  });
-
-  useEffect(() => {
-    if (!removed) return;
-    clearSeat(code);
-    router.replace(routes.scribblex.home);
-  }, [removed, code, router]);
-
-  const me = useMemo(
-    () => state?.players.find((p) => p.id === seat?.player_id) ?? null,
-    [state, seat],
-  );
+  const me = useMemo(() => state?.players.find((p) => p.id === meId) ?? null, [state, meId]);
   const isHost = Boolean(me?.is_host);
   const settings = state?.settings;
 
@@ -112,12 +91,6 @@ export default function Lobby() {
     }
   };
 
-  const leave = () => {
-    actions.leave();
-    clearSeat(code);
-    router.push(routes.scribblex.home);
-  };
-
   const toggleDeck = (deckId: string) => {
     if (!settings) return;
     const next = settings.decks.includes(deckId)
@@ -135,22 +108,13 @@ export default function Lobby() {
     setShowCustom(false);
   };
 
-  if (seat === null || (!state && !removed)) {
-    return (
-      <div className="min-h-screen sx-dots grid place-items-center px-sx-md">
-        <p className="font-sx-body text-sx-body-lg text-sx-on-surface-variant">
-          {connected ? "Loading the room…" : "Connecting…"}
-        </p>
-      </div>
-    );
-  }
   if (!state) return null;
 
   return (
     <div className="min-h-screen sx-dots pb-40">
       <header className="mx-auto w-full max-w-2xl px-sx-md pt-sx-md flex items-center justify-between gap-sx-sm">
         <button
-          onClick={leave}
+          onClick={onLeave}
           data-testid="sx-lobby-leave"
           aria-label="Leave room"
           className="press grid h-11 w-11 place-items-center rounded-full bg-white border-[2.5px] border-sx-ink shadow-sticker hover:shadow-sticker-hover active:shadow-sticker-press"
@@ -215,8 +179,16 @@ export default function Lobby() {
           <SectionHeading action={<Chip tone="cyan">{settings!.decks.length} selected</Chip>}>
             Word decks
           </SectionHeading>
+          {decksLoading && (
+            <p className="font-sx-body text-sx-body-sm text-sx-on-surface-variant">Loading decks…</p>
+          )}
+          {decksFailed && (
+            <p className="font-sx-body text-sx-body-sm text-sx-primary" data-testid="sx-decks-failed">
+              Couldn&apos;t load the decks. Check your connection and reload.
+            </p>
+          )}
           <div className="space-y-2">
-            {DECKS.map((deck) => {
+            {decks.map((deck) => {
               const on = settings!.decks.includes(deck.id);
               return (
                 <button
@@ -235,7 +207,7 @@ export default function Lobby() {
                   <span className="min-w-0 flex-1">
                     <span className="block font-sx-display text-sx-label-lg text-sx-ink">{deck.name}</span>
                     <span className="block font-sx-body text-sx-body-sm text-sx-on-surface-variant truncate">
-                      {deck.blurb}
+                      {deck.blurb} · {deck.word_count} words
                     </span>
                   </span>
                   <span
@@ -378,8 +350,8 @@ export default function Lobby() {
               <RosterCard
                 key={player.id}
                 player={player}
-                isMe={player.id === seat?.player_id}
-                canKick={isHost && player.id !== seat?.player_id}
+                isMe={player.id === meId}
+                canKick={isHost && player.id !== meId}
                 onKick={() => actions.kick(player.id)}
               />
             ))}
@@ -396,9 +368,7 @@ export default function Lobby() {
                 disabled={!state.can_start}
                 data-testid="sx-start-match"
                 className="w-full"
-                onClick={() => {
-                  /* The game loop lands in the next change; the button is live but inert. */
-                }}
+                onClick={actions.start}
               >
                 Start the match
               </Button>

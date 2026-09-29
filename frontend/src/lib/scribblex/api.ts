@@ -1,5 +1,5 @@
 import { api } from "../api";
-import type { Profile, RoomState, RoomSummary, Seat, SettingsPatch } from "./types";
+import type { DeckSummary, Profile, RoomState, RoomSummary, Seat, SettingsPatch } from "./types";
 
 /** REST half of ScribbleX: opening a room and getting into one. Live play is over the socket. */
 
@@ -25,6 +25,12 @@ export async function quickPlay(profile: Profile): Promise<Seat> {
 /** Look a room up before joining, so the form can say "full" or "already started". */
 export async function getRoom(code: string): Promise<RoomState> {
   const { data } = await api.get<RoomState>(`/scribblex/rooms/${encodeURIComponent(code)}`);
+  return data;
+}
+
+/** The deck catalogue offered in the lobby. */
+export async function listDecks(): Promise<DeckSummary[]> {
+  const { data } = await api.get<DeckSummary[]>("/scribblex/decks");
   return data;
 }
 
