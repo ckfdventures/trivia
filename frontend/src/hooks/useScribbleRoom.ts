@@ -53,6 +53,9 @@ export interface CanvasChannel {
   /** The live op log. Mutable and deliberately outside React state — see the note below. */
   ops: React.RefObject<DrawOp[]>;
   subscribe(listener: (change: CanvasChange) => void): () => void;
+  /** Paint points the local player just made, without touching the network. */
+  paintLocal(op: Omit<StrokeOp, "kind">): void;
+  /** Hand accumulated points to the server. Paints nothing. */
   sendStroke(op: Omit<StrokeOp, "kind">): void;
   sendFill(op: Omit<FillOp, "kind">): void;
   undo(): void;
@@ -164,8 +167,10 @@ export function useScribbleRoom({ code, playerId, token }: Options): ScribbleRoo
       notify({ type: "replay" });
     });
     socket.on("draw:stroke", (data: StrokeOp & { player_id: string }) => {
-      opsRef.current = mergeStroke(opsRef.current, { ...data, kind: "stroke" });
-      notify({ type: "op", op: { ...data, kind: "stroke" } });
+      const { ops, merged } = mergeStroke(opsRef.current, { ...data, kind: "stroke" });
+      opsRef.current = ops;
+      // The merged stroke, not the batch: the painter indexes points absolutely.
+      notify({ type: "op", op: merged });
     });
     socket.on("draw:fill", (data: FillOp & { player_id: string }) => {
       const op: FillOp = { ...data, kind: "fill" };
@@ -218,10 +223,15 @@ export function useScribbleRoom({ code, playerId, token }: Options): ScribbleRoo
         listenersRef.current.add(listener);
         return () => listenersRef.current.delete(listener);
       },
+      // Painting and sending are separate so the pen never waits for the network. Points are
+      // painted the moment they arrive from the pointer, then sent in batches; the server
+      // never echoes the author's own strokes back, so there is no double-draw.
+      paintLocal(op) {
+        const { ops, merged } = mergeStroke(opsRef.current, { ...op, kind: "stroke" });
+        opsRef.current = ops;
+        notify({ type: "op", op: merged });
+      },
       sendStroke(op) {
-        // Paint locally first, then tell the server; it does not echo this back to us.
-        opsRef.current = mergeStroke(opsRef.current, { ...op, kind: "stroke" });
-        notify({ type: "op", op: { ...op, kind: "stroke" } });
         emit("draw:stroke", op);
       },
       sendFill(op) {

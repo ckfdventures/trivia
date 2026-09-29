@@ -130,17 +130,32 @@ export class CanvasPainter {
       return;
     }
 
-    for (let i = Math.max(1, startIndex); i < pts.length; i++) {
+    // One path for the whole batch, not one per segment. Segments drawn separately overlap at
+    // every shared endpoint, which the translucent marker blends twice into a bead at each
+    // point — and it costs a canvas operation per sample instead of per batch.
+    const from = Math.max(1, startIndex);
+    if (from >= pts.length) {
+      ctx.restore();
+      return;
+    }
+
+    ctx.beginPath();
+    const firstPrev = px(pts[from - 1]!);
+    const origin = from >= 2 ? mid(px(pts[from - 2]!), firstPrev) : firstPrev;
+    ctx.moveTo(origin.x, origin.y);
+
+    for (let i = from; i < pts.length; i++) {
       const prev = px(pts[i - 1]!);
       const curr = px(pts[i]!);
-      const start = i >= 2 ? mid(px(pts[i - 2]!), prev) : prev;
       const end = mid(prev, curr);
-
-      ctx.beginPath();
-      ctx.moveTo(start.x, start.y);
+      // Curve through each sample, landing on the midpoint to the next — the standard way to
+      // get a smooth line out of discrete pointer positions.
       ctx.quadraticCurveTo(prev.x, prev.y, end.x, end.y);
-      ctx.stroke();
     }
+    // Reach the final sample so the stroke ends under the pointer, not short of it.
+    const last = px(pts[pts.length - 1]!);
+    ctx.lineTo(last.x, last.y);
+    ctx.stroke();
     ctx.restore();
   }
 
@@ -215,10 +230,22 @@ export function within(a: number, b: number, tolerance: number): boolean {
   );
 }
 
-/** Apply an incoming batch to the local log, starting the stroke if it is new. */
-export function mergeStroke(ops: DrawOp[], incoming: StrokeOp): DrawOp[] {
+/**
+ * Apply an incoming batch to the local log, starting the stroke if it is new.
+ *
+ * Returns the *merged* stroke — every point so far, not just the batch. The painter indexes
+ * strokes absolutely, so handing it a batch would make it skip the join between batches and,
+ * when a batch held a single point, draw nothing at all.
+ */
+export function mergeStroke(
+  ops: DrawOp[],
+  incoming: StrokeOp,
+): { ops: DrawOp[]; merged: StrokeOp } {
   const existing = ops.find((o): o is StrokeOp => o.kind === "stroke" && o.id === incoming.id);
-  if (!existing) return [...ops, { ...incoming, points: [...incoming.points] }];
+  if (!existing) {
+    const started: StrokeOp = { ...incoming, points: [...incoming.points] };
+    return { ops: [...ops, started], merged: started };
+  }
   existing.points.push(...incoming.points);
-  return ops;
+  return { ops, merged: existing };
 }
