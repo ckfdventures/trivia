@@ -24,27 +24,77 @@ export default function Home() {
         <TriviaGate />
         <ScribbleGate />
       </main>
+      <ShellFoot />
     </div>
+  );
+}
+
+/**
+ * The platform mark: one tile split corner to corner, trivia's violet giving way to
+ * ScribbleX's coral. Two worlds in a single object — the same idea as the seam below it.
+ */
+function PlatformMark() {
+  return (
+    <svg
+      viewBox="0 0 32 32"
+      className="h-10 w-10 shrink-0"
+      role="img"
+      aria-label={`${PLATFORM_NAME} logo`}
+    >
+      <defs>
+        <clipPath id="shell-mark-clip">
+          <rect width="32" height="32" rx="10" />
+        </clipPath>
+      </defs>
+      <g clipPath="url(#shell-mark-clip)">
+        <rect width="32" height="32" fill="#2E1065" />
+        <path d="M32 0 L32 32 L0 32 Z" fill="#FF7A59" />
+      </g>
+      <rect x="0.9" y="0.9" width="30.2" height="30.2" rx="9.1" fill="none" stroke="#F5F3EF" strokeOpacity="0.22" strokeWidth="1.8" />
+    </svg>
   );
 }
 
 function ShellBar() {
   return (
-    <header className="bg-shell-ink text-shell-bone">
-      <div className="mx-auto w-full max-w-[1600px] px-5 sm:px-8 h-14 flex items-center justify-between">
-        <span className="font-shell text-[17px] font-extrabold tracking-tight">
-          {PLATFORM_NAME}
+    <header className="bg-shell-ink text-shell-bone border-b border-white/10">
+      <div className="mx-auto w-full max-w-[1600px] px-5 sm:px-8 h-[76px] flex items-center justify-between gap-8">
+        <Link
+          href={routes.home}
+          data-testid="shell-home"
+          className="flex items-center gap-3 rounded-2xl focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-shell-bone"
+        >
+          <PlatformMark />
+          <span className="font-shell text-2xl sm:text-[26px] font-extrabold tracking-[-0.025em] leading-none">
+            {PLATFORM_NAME}
+          </span>
+        </Link>
+
+        <p className="hidden md:block font-shell text-sm font-medium text-shell-dim text-right max-w-[38ch] leading-snug">
+          Share a link and play on any phone. No app, no signup.
+        </p>
+      </div>
+    </header>
+  );
+}
+
+function ShellFoot() {
+  return (
+    <footer className="bg-shell-ink text-shell-dim border-t border-white/10">
+      <div className="mx-auto w-full max-w-[1600px] px-5 sm:px-8 min-h-14 py-3 flex flex-wrap items-center justify-between gap-3">
+        <span className="font-shell text-[13px] font-medium">
+          © {new Date().getFullYear()} {PLATFORM_NAME}
         </span>
         <Link
           href={routes.admin.login}
           data-testid="shell-admin-login"
-          className="font-shell text-[13px] font-bold text-shell-dim hover:text-shell-bone inline-flex items-center gap-1.5 rounded-full px-3 h-8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-shell-bone transition-colors"
+          className="font-shell text-[13px] font-bold inline-flex items-center gap-1.5 rounded-full border border-white/15 px-4 h-9 hover:text-shell-bone hover:border-white/40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-shell-bone transition-colors"
         >
           <LockSimple size={13} weight="bold" />
           Admin
         </Link>
       </div>
-    </header>
+    </footer>
   );
 }
 
