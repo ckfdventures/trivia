@@ -5,6 +5,7 @@ import { io, type Socket } from "socket.io-client";
 import { BACKEND_URL, SOCKET_PATH } from "../lib/api";
 import { mergeStroke, type DrawOp, type FillOp, type StrokeOp } from "../lib/scribblex/drawing";
 import { addXp, XP_PER_CORRECT_GUESS, XP_PER_MATCH } from "../lib/scribblex/profile";
+import { CHAT_MIN_INTERVAL_MS } from "../lib/scribblex/constants";
 import type {
   ChatMessage,
   MatchStandings,
@@ -106,6 +107,8 @@ export function useScribbleRoom({ code, playerId, token }: Options): ScribbleRoo
   });
 
   const socketRef = useRef<Socket | null>(null);
+  /** When the next guess may go out, so a fast typist never loses one to the rate limit. */
+  const nextGuessAtRef = useRef(0);
   const opsRef = useRef<DrawOp[]>([]);
   const listenersRef = useRef(new Set<(change: CanvasChange) => void>());
 
@@ -216,7 +219,16 @@ export function useScribbleRoom({ code, playerId, token }: Options): ScribbleRoo
       start: () => emit("room:start"),
       playAgain: () => emit("room:playAgain"),
       pickWord: (index) => emit("turn:pickWord", { index }),
-      guess: (text) => emit("chat:guess", { text }),
+      guess: (text) => {
+        // The server drops anything sent faster than its limit. Players in a guessing game
+        // type fast and in bursts, and a guess that vanishes with no feedback reads as the
+        // game being broken — so pace them here instead of losing them there.
+        const now = Date.now();
+        const wait = Math.max(0, nextGuessAtRef.current - now);
+        nextGuessAtRef.current = now + wait + CHAT_MIN_INTERVAL_MS;
+        if (wait === 0) emit("chat:guess", { text });
+        else window.setTimeout(() => emit("chat:guess", { text }), wait);
+      },
     }),
     [emit],
   );

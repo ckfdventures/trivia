@@ -30,3 +30,5 @@ export const MIN_PLAYERS_TO_START = 2;
 
 export const MIN_CUSTOM_WORDS = 10;
 export const MAX_CHAT_LENGTH = 100;
+/** The server drops anything faster than this, so the client paces itself to match. */
+export const CHAT_MIN_INTERVAL_MS = 500;
