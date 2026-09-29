@@ -3,6 +3,7 @@
 import React, { useEffect, useMemo, useState } from "react";
 import Link from "next/link";
 import { useNavigate } from "../lib/navigation";
+import { routes } from "../lib/routes";
 import { ArrowLeft, ArrowRight, Minus, Plus, Shuffle, Tag } from "@phosphor-icons/react";
 import { Logo } from "../components/Logo";
 import { createRoom, errorMessage, getThemes } from "../lib/api";
@@ -70,7 +71,7 @@ export default function HostSetup() {
         }),
       };
       localStorage.setItem(`ts_host_${room.pin}`, JSON.stringify(hostSession));
-      navigate(`/host/lobby/${room.pin}`);
+      navigate(routes.trivia.hostLobby(room.pin));
     } catch (e) {
       setError(errorMessage(e));
     } finally {

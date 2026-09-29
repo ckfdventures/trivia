@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { readStored, useNavigate, usePin } from "../lib/navigation";
+import { routes } from "../lib/routes";
 import type { PlayerSession } from "../lib/types";
 import { motion } from "framer-motion";
 import { WifiHigh, WifiSlash, Confetti } from "@phosphor-icons/react";
@@ -16,7 +17,7 @@ export default function PlayerLobby() {
   useEffect(() => {
     const stored = readStored<PlayerSession>(`ts_player_${pin}`);
     if (!stored) {
-      navigate(`/play/${pin}`);
+      navigate(routes.trivia.join(pin));
       return;
     }
     // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage is only readable after mount
@@ -32,7 +33,7 @@ export default function PlayerLobby() {
 
   useEffect(() => {
     if (state?.status && state.status !== "lobby") {
-      navigate(`/play/${pin}/game`);
+      navigate(routes.trivia.playerGame(pin));
     }
   }, [state?.status, navigate, pin]);
 

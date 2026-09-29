@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { readStored, useNavigate, usePin } from "../lib/navigation";
+import { routes } from "../lib/routes";
 import type { HostSession, RoomState } from "../lib/types";
 import { motion, AnimatePresence } from "framer-motion";
 import {
@@ -40,7 +41,7 @@ export default function HostGame() {
   useEffect(() => {
     const stored = readStored<HostSession>(`ts_host_${pin}`);
     if (!stored) {
-      navigate("/host/create");
+      navigate(routes.trivia.hostCreate);
       return;
     }
     // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage is only readable after mount
@@ -56,7 +57,7 @@ export default function HostGame() {
 
   useEffect(() => {
     if (state?.status === "lobby") {
-      navigate(`/host/lobby/${pin}`);
+      navigate(routes.trivia.hostLobby(pin));
     }
   }, [state?.status, navigate, pin]);
 
@@ -460,7 +461,7 @@ function GameOverHost({ state, pin }: { state: RoomState; pin: string }) {
         <button
           onClick={() => {
             localStorage.removeItem(`ts_host_${pin}`);
-            navigate("/host/create");
+            navigate(routes.trivia.hostCreate);
           }}
           data-testid="host-new-game-btn"
           className="btn-arcade rounded-full bg-orange-300 hover:bg-orange-400 text-indigo-950 font-black px-8 h-14"
