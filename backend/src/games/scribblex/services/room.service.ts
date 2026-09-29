@@ -123,7 +123,13 @@ export class ScribbleRoomService {
     player.reconnectTimer = null;
     player.disconnectedAt = null;
     player.connected = true;
+
+    // One seat, one live connection. A second tab takes the seat over, and the socket it
+    // replaces is dropped rather than left open receiving nothing — the map is registered
+    // first so the old socket's disconnect handler sees it is no longer the current one.
+    const previous = room.connections.get(playerId);
     room.connections.set(playerId, conn);
+    if (previous && previous !== conn) previous.close?.();
 
     this.notifier.broadcastState(room);
     this.refreshAutostart(room);

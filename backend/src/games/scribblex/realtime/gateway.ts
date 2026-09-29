@@ -40,6 +40,10 @@ class SocketConnection implements RoomConnection {
   send(event: string, data: unknown): void {
     this.socket.emit(event, data);
   }
+
+  close(): void {
+    this.socket.disconnect(true);
+  }
 }
 
 /**

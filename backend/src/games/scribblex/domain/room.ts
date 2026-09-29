@@ -11,6 +11,8 @@ import {
 export interface RoomConnection {
   readonly id: string;
   send(event: string, data: unknown): void;
+  /** Drop the underlying transport. Used when a newer connection takes over the same seat. */
+  close?(): void;
 }
 
 /**

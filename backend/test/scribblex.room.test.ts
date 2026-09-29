@@ -3,16 +3,20 @@ import { ROOM_CODE_ALPHABET, ROOM_CODE_LENGTH, RECONNECT_GRACE_MS } from "../src
 import { formatRoomCode, normalizeRoomCode } from "../src/games/scribblex/domain/codes.js";
 import { toPublicRoomState } from "../src/games/scribblex/domain/room-view.js";
 import type { PlayerProfile, RoomConnection } from "../src/games/scribblex/domain/room.js";
-import { ScribbleRoomNotifier } from "../src/games/scribblex/services/room-notifier.js";
+import { ScribbleEvents, ScribbleRoomNotifier } from "../src/games/scribblex/services/room-notifier.js";
 import { ScribbleRoomService } from "../src/games/scribblex/services/room.service.js";
 import { ScribbleRoomStore } from "../src/games/scribblex/services/room-store.js";
 import { WordListProfanityFilter } from "../src/services/profanity-filter.js";
 
 class FakeConn implements RoomConnection {
   readonly sent: { event: string; data: unknown }[] = [];
+  closed = false;
   constructor(readonly id: string) {}
   send(event: string, data: unknown): void {
     this.sent.push({ event, data });
+  }
+  close(): void {
+    this.closed = true;
   }
 }
 
@@ -307,6 +311,46 @@ describe("reconnects", () => {
     vi.advanceTimersByTime(RECONNECT_GRACE_MS + 1000);
 
     expect(service.getRoom(code)!.players.get(guest.playerId)!.connected).toBe(true);
+  });
+});
+
+describe("one seat, one live connection", () => {
+  it("drops the socket a newer one takes over from", () => {
+    const { service, code, guest } = readyRoom();
+    const firstTab = new FakeConn("first");
+    service.connect(code, guest.playerId, guest.sessionToken, firstTab);
+
+    const secondTab = new FakeConn("second");
+    service.connect(code, guest.playerId, guest.sessionToken, secondTab);
+
+    expect(firstTab.closed).toBe(true);
+    expect(secondTab.closed).toBe(false);
+    expect(service.getRoom(code)!.connections.get(guest.playerId)).toBe(secondTab);
+  });
+
+  it("keeps the player connected when the socket it replaced closes", () => {
+    const { service, code, guest } = readyRoom();
+    const firstTab = new FakeConn("first");
+    const secondTab = new FakeConn("second");
+    service.connect(code, guest.playerId, guest.sessionToken, firstTab);
+    service.connect(code, guest.playerId, guest.sessionToken, secondTab);
+
+    // The evicted socket's disconnect arrives afterwards; it must not unseat the live one.
+    service.disconnect(code, guest.playerId, firstTab);
+
+    const player = service.getRoom(code)!.players.get(guest.playerId)!;
+    expect(player.connected).toBe(true);
+    expect(service.getRoom(code)!.connections.get(guest.playerId)).toBe(secondTab);
+  });
+
+  it("still reaches the player after a takeover", () => {
+    const { service, code, host, guest } = readyRoom();
+    service.connect(code, guest.playerId, guest.sessionToken, new FakeConn("first"));
+    const secondTab = new FakeConn("second");
+    service.connect(code, guest.playerId, guest.sessionToken, secondTab);
+
+    service.kick(code, host.playerId, guest.playerId);
+    expect(secondTab.sent.some((s) => s.event === ScribbleEvents.Kicked)).toBe(true);
   });
 });
 
