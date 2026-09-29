@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { readStored, useNavigate, usePin } from "../lib/navigation";
+import { routes } from "../lib/routes";
 import { motion, AnimatePresence } from "framer-motion";
 import { Copy, LinkSimple, Users, Play, ArrowLeft, WifiHigh, WifiSlash } from "@phosphor-icons/react";
 import { Logo } from "../components/Logo";
@@ -21,7 +22,7 @@ export default function HostLobby() {
   useEffect(() => {
     const stored = readStored<HostSession>(`ts_host_${pin}`);
     if (!stored) {
-      navigate("/host/create");
+      navigate(routes.trivia.hostCreate);
       return;
     }
     // eslint-disable-next-line react-hooks/set-state-in-effect -- browser-only values are read after mount
@@ -39,7 +40,7 @@ export default function HostLobby() {
   useEffect(() => {
     // Navigate to game view once host has started the round
     if (state?.status && state.status !== "lobby") {
-      navigate(`/host/game/${pin}`);
+      navigate(routes.trivia.hostGame(pin));
     }
   }, [state?.status, navigate, pin]);
 

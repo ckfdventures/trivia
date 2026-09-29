@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { readStored, useNavigate, usePin } from "../lib/navigation";
+import { routes } from "../lib/routes";
 import { motion, AnimatePresence } from "framer-motion";
 import { Check, X, Trophy, WifiHigh, WifiSlash, Fire, Crown } from "@phosphor-icons/react";
 import { Logo } from "../components/Logo";
@@ -26,7 +27,7 @@ export default function PlayerGame() {
   useEffect(() => {
     const stored = readStored<PlayerSession>(`ts_player_${pin}`);
     if (!stored) {
-      navigate(`/play/${pin}`);
+      navigate(routes.trivia.join(pin));
       return;
     }
     // eslint-disable-next-line react-hooks/set-state-in-effect -- localStorage is only readable after mount
@@ -41,7 +42,7 @@ export default function PlayerGame() {
   });
 
   useEffect(() => {
-    if (state?.status === "lobby") navigate(`/play/${pin}/lobby`);
+    if (state?.status === "lobby") navigate(routes.trivia.playerLobby(pin));
   }, [state?.status, pin, navigate]);
 
   // Host promotion: server pushes 'promoted_to_host' targeted to this player
@@ -59,7 +60,7 @@ export default function PlayerGame() {
       localStorage.removeItem(`ts_player_${pin}`);
       // eslint-disable-next-line react-hooks/set-state-in-effect -- reacting to a socket event
       setPromotedNotice(true);
-      setTimeout(() => navigate(`/host/game/${pin}`), 1400);
+      setTimeout(() => navigate(routes.trivia.hostGame(pin)), 1400);
     }
   }, [lastEvent, pin, navigate, state?.quiz_title]);
 

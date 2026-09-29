@@ -3,6 +3,7 @@
 import React, { useState } from "react";
 import Link from "next/link";
 import { useNavigate } from "../lib/navigation";
+import { routes } from "../lib/routes";
 import { motion } from "framer-motion";
 import { ArrowRight, Confetti, GameController, LockSimple, Users, Trophy } from "@phosphor-icons/react";
 import { Logo } from "../components/Logo";
@@ -20,7 +21,7 @@ export default function Landing() {
       setPinErr("Enter the 6-digit Game PIN");
       return;
     }
-    navigate(`/play/${clean}`);
+    navigate(routes.trivia.join(clean));
   };
 
   return (
@@ -28,13 +29,22 @@ export default function Landing() {
       {/* Nav */}
       <header className="max-w-7xl mx-auto px-6 md:px-10 py-6 flex items-center justify-between">
         <Logo />
-        <button
-          data-testid="nav-host-btn"
-          onClick={() => navigate("/host/create")}
-          className="hidden sm:inline-flex rounded-full bg-indigo-950 text-white text-sm font-semibold px-5 py-2 hover:bg-indigo-900"
-        >
-          Host a game
-        </button>
+        <div className="flex items-center gap-2">
+          <Link
+            href={routes.home}
+            data-testid="nav-all-games"
+            className="rounded-full border border-indigo-200 text-indigo-950 text-sm font-semibold px-4 py-2 hover:bg-indigo-50"
+          >
+            All games
+          </Link>
+          <button
+            data-testid="nav-host-btn"
+            onClick={() => navigate(routes.trivia.hostCreate)}
+            className="hidden sm:inline-flex rounded-full bg-indigo-950 text-white text-sm font-semibold px-5 py-2 hover:bg-indigo-900"
+          >
+            Host a game
+          </button>
+        </div>
       </header>
 
       {/* Hero */}
@@ -55,7 +65,7 @@ export default function Landing() {
           <div className="mt-10 flex flex-wrap items-center gap-4">
             <button
               data-testid="hero-host-btn"
-              onClick={() => navigate("/host/create")}
+              onClick={() => navigate(routes.trivia.hostCreate)}
               className="btn-arcade rounded-full bg-orange-300 hover:bg-orange-400 text-indigo-950 font-black text-lg px-8 h-14 inline-flex items-center gap-3"
             >
               <GameController size={22} weight="fill" /> Host a game

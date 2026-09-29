@@ -2,6 +2,7 @@
 
 import React, { useEffect, useState } from "react";
 import { useNavigate, usePin } from "../lib/navigation";
+import { routes } from "../lib/routes";
 import { motion } from "framer-motion";
 import { ArrowRight, ArrowLeft } from "@phosphor-icons/react";
 import { Logo } from "../components/Logo";
@@ -49,7 +50,7 @@ export default function PlayerJoin() {
     }
     setPin(clean);
     setStep("nickname");
-    navigate(`/play/${clean}`, { replace: true });
+    navigate(routes.trivia.join(clean), { replace: true });
   };
 
   const submitNickname = async (e: React.FormEvent) => {
@@ -74,7 +75,7 @@ export default function PlayerJoin() {
         nickname: result.nickname,
       };
       localStorage.setItem(`ts_player_${pin}`, JSON.stringify(playerSession));
-      navigate(`/play/${pin}/lobby`);
+      navigate(routes.trivia.playerLobby(pin));
     } catch (e) {
       const status = errorStatus(e);
       const detail = errorMessage(e);

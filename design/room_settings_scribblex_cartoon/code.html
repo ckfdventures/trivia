@@ -1,0 +1,378 @@
+<!DOCTYPE html>
+
+<html lang="en"><head><meta charset="utf-8"/><meta content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" name="viewport"/><meta content="mobile_stack" name="shell-type"/><title>ScribbleX Arena</title><link href="https://fonts.googleapis.com" rel="preconnect"/><link crossorigin="" href="https://fonts.gstatic.com" rel="preconnect"/><link href="https://fonts.googleapis.com/css2?family=Plus+Jakarta+Sans:wght@700;800&amp;family=Quicksand:wght@500;600&amp;display=swap" rel="stylesheet"/><link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:opsz,wght,FILL,GRAD@20..48,100..700,0..1,-50..200" rel="stylesheet"/>
+<link href="https://fonts.googleapis.com/css2?family=Material+Symbols+Outlined:wght,FILL@100..700,0..1&amp;display=swap" rel="stylesheet"/><script src="https://cdn.tailwindcss.com"></script><script id="tailwind-config">tailwind.config = { darkMode: "class", theme: { extend: { colors: { "secondary": "#785a00", "tertiary-fixed-dim": "#5dd9d0", "on-primary": "#ffffff", "on-error": "#ffffff", "tertiary-fixed": "#7cf6ec", "error": "#ba1a1a", "inverse-surface": "#342f36", "on-primary-container": "#701500", "tertiary-container": "#2bb4ab", "on-primary-fixed-variant": "#862208", "secondary-container": "#fec736", "primary-fixed-dim": "#ffb4a2", "surface-container-low": "#fbf1fa", "on-tertiary": "#ffffff", "surface-variant": "#e9dfe9", "on-secondary-fixed": "#251a00", "on-secondary-container": "#705400", "tertiary": "#006a65", "secondary-fixed": "#ffdf9a", "surface-container": "#f5ebf5", "outline-variant": "#dfc0b8", "on-background": "#1f1a21", "primary-fixed": "#ffdad2", "surface-tint": "#a7391e", "on-error-container": "#93000a", "outline": "#8b716b", "on-surface": "#1f1a21", "surface-container-lowest": "#ffffff", "surface": "#fff7fd", "inverse-primary": "#ffb4a2", "on-tertiary-container": "#00403c", "surface-dim": "#e1d7e1", "on-secondary-fixed-variant": "#5a4300", "primary": "#a7391e", "on-primary-fixed": "#3c0700", "secondary-fixed-dim": "#f5bf2d", "primary-container": "#ff7a59", "inverse-on-surface": "#f8eef7", "on-secondary": "#ffffff", "error-container": "#ffdad6", "background": "#fff7fd", "surface-container-highest": "#e9dfe9", "on-surface-variant": "#58423c", "surface-container-high": "#efe5ef", "on-tertiary-fixed": "#00201e", "surface-bright": "#fff7fd", "on-tertiary-fixed-variant": "#00504c" }, borderRadius: { "DEFAULT": "1rem", "lg": "2rem", "xl": "3rem", "full": "9999px" }, spacing: { "space-sm": "0.75rem", "space-lg": "2rem", "gutter-mobile": "0.75rem", "space-xl": "3rem", "space-xs": "0.375rem", "space-md": "1.25rem", "margin-mobile": "1rem", "gutter": "1.25rem", "margin": "2rem" }, fontFamily: { "label-sm": ["Plus Jakarta Sans"], "label-md": ["Plus Jakarta Sans"], "body-lg": ["Quicksand"], "display-hero": ["Plus Jakarta Sans"], "label-lg": ["Plus Jakarta Sans"], "display-hero-mobile": ["Plus Jakarta Sans"], "headline-md": ["Plus Jakarta Sans"], "headline-lg": ["Plus Jakarta Sans"], "body-sm": ["Quicksand"], "headline-lg-mobile": ["Plus Jakarta Sans"], "body-md": ["Quicksand"], "headline-sm": ["Plus Jakarta Sans"] }, fontSize: { "label-sm": ["11px", { "lineHeight": "16px", "letterSpacing": "0.03em", "fontWeight": "700" }], "label-md": ["13px", { "lineHeight": "18px", "letterSpacing": "0.02em", "fontWeight": "700" }], "body-lg": ["18px", { "lineHeight": "28px", "fontWeight": "600" }], "display-hero": ["48px", { "lineHeight": "56px", "letterSpacing": "-0.02em", "fontWeight": "800" }], "label-lg": ["15px", { "lineHeight": "20px", "letterSpacing": "0.01em", "fontWeight": "700" }], "display-hero-mobile": ["34px", { "lineHeight": "42px", "letterSpacing": "-0.01em", "fontWeight": "800" }], "headline-md": ["24px", { "lineHeight": "32px", "letterSpacing": "-0.01em", "fontWeight": "700" }], "headline-lg": ["36px", { "lineHeight": "44px", "letterSpacing": "-0.015em", "fontWeight": "800" }], "body-sm": ["14px", { "lineHeight": "20px", "fontWeight": "500" }], "headline-lg-mobile": ["26px", { "lineHeight": "34px", "letterSpacing": "-0.01em", "fontWeight": "800" }], "body-md": ["16px", { "lineHeight": "24px", "fontWeight": "500" }], "headline-sm": ["20px", { "lineHeight": "28px", "fontWeight": "700" }] } } } }</script><style>@layer base { html, body { width: 100vw; margin: 0; padding: 0; } body { overscroll-behavior: none; } .pb-safe { padding-bottom: env(safe-area-inset-bottom, 0px); } .pt-safe { padding-top: env(safe-area-inset-top, 0px); } main > :first-child { margin-top: 0 !important; } main > :last-child { margin-bottom: 0 !important; } } ::-webkit-scrollbar { display: none; }</style></head><body class="bg-background font-body-md text-on-surface antialiased flex flex-col min-h-screen"><header class="fixed top-0 w-full z-50 pt-safe px-margin-mobile"><div class="h-16 flex items-center justify-between mt-space-xs px-space-sm bg-surface-container-lowest/85 backdrop-blur-xl rounded-full shadow-[0_1px_8px_rgba(0,0,0,0.04)]"><div class="flex items-center gap-space-xs"><button aria-label="Leave Room" class="w-11 h-11 flex items-center justify-center rounded-full bg-surface-container-high text-on-surface-variant hover:bg-surface-container-highest active:scale-90 transition-all" onclick="history.back()"><span class="material-symbols-outlined text-[22px]">arrow_back</span></button><div class="flex items-center gap-space-xs pl-space-xs"><img alt="ScribbleX Cartoon Mascot Logo" class="h-8 w-auto object-contain" src="https://lh3.googleusercontent.com/aida/AEtjO1XtFCnihVtVFlc7mkfGuY-99KwbC4gNyBRk45_JS7Hi2nHJcC1v9iNvXMvZVdrp0aFjDpHiaetd2SG8Ieivl4XcMBQ2a_Tk6gMVWJ4uuzBBPHHvi1L8srHR__-5Q1fD4mUVZbdVWH27hWJAYUuaueUEpm3PNF8cvNPfCFaZB3utol1mV43d2h8zHg88ZnMWbtgTSNegqvYGf_J57rjAC4B0fARTKuB2lvO_nhJA219hzUoTjcbR3C90y-o"/><span class="font-label-lg text-label-lg text-primary truncate max-w-[100px]">Room Customizer</span></div></div><div class="flex items-center gap-space-xs"><div class="flex items-center gap-1 bg-secondary-fixed/40 text-on-secondary-fixed px-space-sm py-space-xs rounded-full"><span class="material-symbols-outlined text-[18px] text-secondary">timer</span><span class="font-label-md text-label-md">55s</span></div><div class="p-0.5 rounded-full"><img alt="Profile" class="w-8 h-8 rounded-full object-cover" src="https://lh3.googleusercontent.com/aida-public/AB6AXuByIJfpUKZS8jbXJ5v2j4Tt_LI-mceKZlLBnBw3RviQ6DA0OuYdgRKkmBSGkm10_tIdmji-yj1nokP5h8Qs24EUUC9wBJdO_bYZm3ZnLyCRpWJdMZ0BJHkG6ryrwUaLdA4JgZffx_RSKLxMlGzUn_tNQ96412Vy20wx2VlABt5BOqWbjC3BbUFbRpVHIkD8biGL55DuKRk4m99WmE3w81RKk35KXh6O6zhrZck9sIPCdDy9Gc3dd6gL"/></div></div></div></header><main class="flex-1 flex flex-col relative w-full pt-16 bg-surface px-margin-mobile pb-safe"><div class="flex flex-col w-full pb-8 space-y-6">
+<!-- Room Code & Quick Invite Banner -->
+<div class="relative overflow-hidden bg-surface-container-lowest rounded-lg p-space-md shadow-sm">
+<div class="flex flex-col gap-3">
+<div class="flex items-center justify-between">
+<span class="font-label-sm text-label-sm text-primary tracking-wider uppercase bg-primary-fixed/60 px-2.5 py-1 rounded-full">Doodle Lobby</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant flex items-center gap-1">
+<span class="material-symbols-outlined text-[16px] text-tertiary">wifi_tethering</span>
+          Live Sync
+        </span>
+</div>
+<!-- Ticket Code Box -->
+<div class="bg-surface-container-low rounded-DEFAULT p-3.5 flex items-center justify-between gap-2 shadow-inner">
+<div class="flex flex-col">
+<span class="font-label-sm text-label-sm text-on-surface-variant">ROOM CODE</span>
+<span class="font-headline-md text-headline-md text-on-surface tracking-wide">#PARTY-77</span>
+</div>
+<div class="flex items-center gap-2">
+<button aria-label="Copy Room Code" class="h-10 px-3.5 bg-surface-container-lowest text-on-surface rounded-full flex items-center gap-1.5 shadow-sm active:scale-95 transition-all" id="btn-copy" onclick="triggerCopyToast()">
+<span class="material-symbols-outlined text-[18px] text-primary">content_copy</span>
+<span class="font-label-md text-label-md">Copy</span>
+</button>
+<button aria-label="Share Link" class="h-10 px-3.5 bg-primary-container text-on-primary-container rounded-full flex items-center gap-1.5 shadow-sm active:scale-95 transition-all" id="btn-share" onclick="triggerShareNotice()">
+<span class="material-symbols-outlined text-[18px]">celebration</span>
+<span class="font-label-md text-label-md">Share</span>
+</button>
+</div>
+</div>
+<p class="font-body-sm text-body-sm text-on-surface-variant text-center">Customize your cozy doodle party before inviting friends!</p>
+</div>
+</div>
+<!-- Word Decks Section -->
+<div class="space-y-3">
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2">
+<span class="font-headline-sm text-headline-sm text-on-surface">Choose Word Decks 📦</span>
+</div>
+<span class="font-label-md text-label-md bg-tertiary-fixed text-on-tertiary-fixed px-3 py-1 rounded-full">3 Selected</span>
+</div>
+<div class="grid grid-cols-1 gap-2.5">
+<!-- Deck 1 -->
+<div class="deck-item cursor-pointer p-space-sm bg-surface-container-lowest rounded-DEFAULT flex items-center justify-between shadow-sm active:scale-[0.99] transition-all" onclick="toggleDeck(this)">
+<div class="flex items-center gap-3">
+<div class="w-12 h-12 rounded-DEFAULT bg-secondary-fixed/50 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[28px] text-secondary">pets</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-label-lg text-label-lg text-on-surface">Cute Animals 🐶</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant truncate">Puppies, hamsters, dinosaurs</span>
+</div>
+</div>
+<div class="check-pill w-7 h-7 rounded-full bg-tertiary text-on-tertiary flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-[18px]">check</span>
+</div>
+</div>
+<!-- Deck 2 -->
+<div class="deck-item cursor-pointer p-space-sm bg-surface-container-lowest rounded-DEFAULT flex items-center justify-between shadow-sm active:scale-[0.99] transition-all" onclick="toggleDeck(this)">
+<div class="flex items-center gap-3">
+<div class="w-12 h-12 rounded-DEFAULT bg-primary-fixed/50 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[28px] text-primary">lunch_dining</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-label-lg text-label-lg text-on-surface">Yummy Treats 🍕</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant truncate">Pancakes, cupcakes, smoothies</span>
+</div>
+</div>
+<div class="check-pill w-7 h-7 rounded-full bg-tertiary text-on-tertiary flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-[18px]">check</span>
+</div>
+</div>
+<!-- Deck 3 -->
+<div class="deck-item cursor-pointer p-space-sm bg-surface-container-lowest rounded-DEFAULT flex items-center justify-between shadow-sm active:scale-[0.99] transition-all" onclick="toggleDeck(this)">
+<div class="flex items-center gap-3">
+<div class="w-12 h-12 rounded-DEFAULT bg-tertiary-fixed/50 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[28px] text-tertiary">auto_fix_high</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-label-lg text-label-lg text-on-surface">Everyday Magic ✨</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant truncate">Backpacks, skateboards, treehouses</span>
+</div>
+</div>
+<div class="check-pill w-7 h-7 rounded-full bg-tertiary text-on-tertiary flex items-center justify-center shadow-sm">
+<span class="material-symbols-outlined text-[18px]">check</span>
+</div>
+</div>
+<!-- Deck 4 (Unselected) -->
+<div class="deck-item cursor-pointer p-space-sm bg-surface-container-low rounded-DEFAULT flex items-center justify-between active:scale-[0.99] transition-all opacity-80" onclick="toggleDeck(this)">
+<div class="flex items-center gap-3">
+<div class="w-12 h-12 rounded-DEFAULT bg-surface-variant flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[28px] text-on-surface-variant">shield</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-label-lg text-label-lg text-on-surface">Cartoons &amp; Heroes 🦸</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant truncate">Superheroes, fairy tales</span>
+</div>
+</div>
+<div class="check-pill w-7 h-7 rounded-full bg-surface-container-high text-on-surface-variant flex items-center justify-center">
+<span class="material-symbols-outlined text-[18px] hidden">check</span>
+</div>
+</div>
+<!-- Custom Wordlist Action -->
+<button class="w-full p-space-sm bg-surface-container rounded-DEFAULT flex items-center justify-center gap-2 text-primary hover:bg-surface-container-high transition-colors active:scale-95">
+<span class="material-symbols-outlined text-[20px]">add_circle</span>
+<span class="font-label-lg text-label-lg">Custom Wordlist ➕</span>
+</button>
+</div>
+</div>
+<!-- Match Dynamics (Pickers) -->
+<div class="bg-surface-container-lowest rounded-lg p-space-md shadow-sm space-y-5">
+<div class="flex items-center justify-between">
+<span class="font-headline-sm text-headline-sm text-on-surface">Match Dynamics ⚡</span>
+<span class="font-label-sm text-label-sm text-secondary bg-secondary-fixed/50 px-2 py-0.5 rounded-full">Arcade Mode</span>
+</div>
+<!-- Rounds Selector -->
+<div class="space-y-2">
+<label class="font-label-md text-label-md text-on-surface-variant">Rounds per Game</label>
+<div class="grid grid-cols-3 gap-2 bg-surface-container-low p-1.5 rounded-full">
+<button class="round-btn py-2 rounded-full font-label-md text-label-md bg-primary text-on-primary shadow-sm transition-all text-center" onclick="selectRounds(this, 3)">3 Rounds</button>
+<button class="round-btn py-2 rounded-full font-label-md text-label-md text-on-surface-variant hover:text-on-surface transition-all text-center" onclick="selectRounds(this, 5)">5 Rounds</button>
+<button class="round-btn py-2 rounded-full font-label-md text-label-md text-on-surface-variant hover:text-on-surface transition-all text-center" onclick="selectRounds(this, 8)">8 Rounds</button>
+</div>
+</div>
+<!-- Turn Timer -->
+<div class="space-y-2">
+<label class="font-label-md text-label-md text-on-surface-variant">Turn Timer</label>
+<div class="grid grid-cols-3 gap-2 bg-surface-container-low p-1.5 rounded-full">
+<button class="timer-btn py-2 rounded-full font-label-md text-label-md text-on-surface-variant hover:text-on-surface transition-all text-center" onclick="selectTimer(this, 45)">45s</button>
+<button class="timer-btn py-2 rounded-full font-label-md text-label-md bg-primary text-on-primary shadow-sm transition-all text-center" onclick="selectTimer(this, 60)">60s</button>
+<button class="timer-btn py-2 rounded-full font-label-md text-label-md text-on-surface-variant hover:text-on-surface transition-all text-center" onclick="selectTimer(this, 80)">80s</button>
+</div>
+</div>
+<!-- Max Sketchers Stepper -->
+<div class="flex items-center justify-between pt-1">
+<div class="flex flex-col">
+<span class="font-label-md text-label-md text-on-surface">Max Sketchers</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant">Limit party capacity</span>
+</div>
+<div class="flex items-center gap-3 bg-surface-container-low px-3 py-1.5 rounded-full">
+<button aria-label="Decrease players" class="w-8 h-8 rounded-full bg-surface-container-lowest text-on-surface flex items-center justify-center active:scale-90 shadow-sm transition-all" onclick="adjustPlayers(-1)">
+<span class="material-symbols-outlined text-[18px]">remove</span>
+</button>
+<span class="font-label-lg text-label-lg text-on-surface min-w-[80px] text-center" id="player-count">6 Players 👫</span>
+<button aria-label="Increase players" class="w-8 h-8 rounded-full bg-surface-container-lowest text-on-surface flex items-center justify-center active:scale-90 shadow-sm transition-all" onclick="adjustPlayers(1)">
+<span class="material-symbols-outlined text-[18px]">add</span>
+</button>
+</div>
+</div>
+</div>
+<!-- Fun Rules & Silly Modifiers -->
+<div class="space-y-3">
+<span class="font-headline-sm text-headline-sm text-on-surface">Fun Rules &amp; Silly Modifiers 🎨</span>
+<div class="bg-surface-container-lowest rounded-lg p-space-md shadow-sm space-y-4">
+<!-- Toggle 1 -->
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2.5 min-w-0 pr-2">
+<div class="w-9 h-9 rounded-full bg-secondary-fixed/50 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[20px] text-secondary">lightbulb</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-md text-label-md text-on-surface">Letter Hints 💡</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant truncate">Reveal blank letters over time</span>
+</div>
+</div>
+<button aria-checked="true" class="w-12 h-7 bg-primary rounded-full p-1 transition-colors relative flex items-center" onclick="toggleSwitch(this)" role="switch">
+<div class="w-5 h-5 bg-on-primary rounded-full shadow-md transform translate-x-5 transition-transform"></div>
+</button>
+</div>
+<!-- Toggle 2 -->
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2.5 min-w-0 pr-2">
+<div class="w-9 h-9 rounded-full bg-tertiary-fixed/50 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[20px] text-tertiary">casino</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-md text-label-md text-on-surface">3-Word Choice 🎲</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant truncate">Drawer picks from 3 fun cards</span>
+</div>
+</div>
+<button aria-checked="true" class="w-12 h-7 bg-primary rounded-full p-1 transition-colors relative flex items-center" onclick="toggleSwitch(this)" role="switch">
+<div class="w-5 h-5 bg-on-primary rounded-full shadow-md transform translate-x-5 transition-transform"></div>
+</button>
+</div>
+<!-- Toggle 3 -->
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2.5 min-w-0 pr-2">
+<div class="w-9 h-9 rounded-full bg-primary-fixed/50 flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[20px] text-primary">toys</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-md text-label-md text-on-surface">Gentle Spelling 🧸</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant truncate">Forgives silly typos &amp; close words</span>
+</div>
+</div>
+<button aria-checked="true" class="w-12 h-7 bg-primary rounded-full p-1 transition-colors relative flex items-center" onclick="toggleSwitch(this)" role="switch">
+<div class="w-5 h-5 bg-on-primary rounded-full shadow-md transform translate-x-5 transition-transform"></div>
+</button>
+</div>
+<!-- Toggle 4 -->
+<div class="flex items-center justify-between">
+<div class="flex items-center gap-2.5 min-w-0 pr-2">
+<div class="w-9 h-9 rounded-full bg-surface-container-high flex items-center justify-center shrink-0">
+<span class="material-symbols-outlined text-[20px] text-on-surface-variant">lock</span>
+</div>
+<div class="flex flex-col">
+<span class="font-label-md text-label-md text-on-surface">Private Party 🔒</span>
+<span class="font-body-sm text-body-sm text-on-surface-variant truncate">Only friends with code can join</span>
+</div>
+</div>
+<button aria-checked="true" class="w-12 h-7 bg-primary rounded-full p-1 transition-colors relative flex items-center" onclick="toggleSwitch(this)" role="switch">
+<div class="w-5 h-5 bg-on-primary rounded-full shadow-md transform translate-x-5 transition-transform"></div>
+</button>
+</div>
+</div>
+</div>
+<!-- Party Lobby Squad (Connected Players) -->
+<div class="space-y-3">
+<div class="flex items-center justify-between">
+<span class="font-headline-sm text-headline-sm text-on-surface">Party Roster (4/6) 🎈</span>
+<span class="font-body-sm text-body-sm text-tertiary flex items-center gap-1">
+<span class="w-2 h-2 rounded-full bg-tertiary animate-pulse"></span>
+        Waiting for 2
+      </span>
+</div>
+<div class="grid grid-cols-2 gap-2.5">
+<!-- Player 1: Host -->
+<div class="bg-surface-container-lowest p-3 rounded-DEFAULT shadow-sm flex items-center gap-2.5">
+<div class="relative">
+<img class="w-11 h-11 rounded-full object-cover bg-secondary-fixed" data-alt="Cute cartoon avatar of Toby wearing a golden crown and drawing spectacles in vibrant playful clay animation style" src="https://lh3.googleusercontent.com/aida-public/AB6AXuC8qP0RmItFu4Q-tFuvqO90H6BYhsGd1lLlsLkfeegHlc8SDTm_VKJLUJo-o5-XOyBkCUpS0RxpTkWyAzOsQj2w-dIhvnzFngXQX9qOvw9Zvn0p6CIR2xvCVSBWwQuqwlAfVjcdaVoScUdr2_N_H4uTiLTaML9bJgtzGH1rC_fNDSBaaGZCYZ70l8e6fTYnD7NLvPqTGEfxHc76d4JHphSDwXAtgwMkrGFQnHGeX4y7CU74y-qRPsqA"/>
+<span class="absolute -top-1 -right-1 text-[12px]">👑</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-label-md text-label-md text-on-surface truncate">Toby (Host)</span>
+<span class="font-body-sm text-body-sm text-tertiary">Ready! 🌟</span>
+</div>
+</div>
+<!-- Player 2 -->
+<div class="bg-surface-container-lowest p-3 rounded-DEFAULT shadow-sm flex items-center gap-2.5">
+<img class="w-11 h-11 rounded-full object-cover bg-primary-fixed" data-alt="Playful cartoon lion avatar named Leo grinning with big warm eyes in a clean 3d toy render style" src="https://lh3.googleusercontent.com/aida-public/AB6AXuCOjUsLoDY3ntqESxXsNNXGX4XQzw7k2UrkRtEpR0XzlP320m9hz6rXizbG3nOyEyLwKtb7yUSh_b4VZSL8m2ohnSLDE2Au1obiqiuUcxRCp3d59kGLkCYvNWzMlWLOqEaCUWiTVW8Ffrurxks72fCASzqjNEtrX6uWY2O7400EF5VU8ucA65ZjHsks_xNDOk2kfvQWeV4piP6UdexownvOadHCXXSPz_Tt-GN3C1txTJyZXAWCR4ou"/>
+<div class="flex flex-col min-w-0">
+<span class="font-label-md text-label-md text-on-surface truncate">Leo</span>
+<span class="font-body-sm text-body-sm text-tertiary">Ready! 🌟</span>
+</div>
+</div>
+<!-- Player 3 (Picking Avatar) -->
+<div class="bg-surface-container-low p-3 rounded-DEFAULT flex items-center gap-2.5">
+<div class="w-11 h-11 rounded-full bg-secondary-container flex items-center justify-center text-on-secondary-container">
+<span class="material-symbols-outlined text-[22px] animate-spin">palette</span>
+</div>
+<div class="flex flex-col min-w-0">
+<span class="font-label-md text-label-md text-on-surface truncate">Mia</span>
+<span class="font-body-sm text-body-sm text-secondary truncate">Choosing... 🎨</span>
+</div>
+</div>
+<!-- Player 4 -->
+<div class="bg-surface-container-lowest p-3 rounded-DEFAULT shadow-sm flex items-center gap-2.5">
+<img class="w-11 h-11 rounded-full object-cover bg-tertiary-fixed" data-alt="Charming cartoon penguin avatar named Noah wearing a cute teal party hat on bright clean pastel backdrop" src="https://lh3.googleusercontent.com/aida-public/AB6AXuA84YyQG0164ms6a3tOm4NhF7sprO2pQ2AzU03Vsf5LW0g6MfZ2EoQUITy0GkUee66TCmoLu0jhVTdYwZ9NqDdXZZXaCMmpGlfej8ld-8256O_zwIJm0d_tfWo8DuaEVk-0yPLOVbtXm_SJx6JXJvaRpk8-ALcqFDiW6kZYUjI4FWwCH6e8C-Hg2pipbeqkKNtKAFSHGJ7wewRBlGBUmbSFxuwKDMm4dNOVbO1PT-jAOtpxjncfFmE5"/>
+<div class="flex flex-col min-w-0">
+<span class="font-label-md text-label-md text-on-surface truncate">Noah</span>
+<span class="font-body-sm text-body-sm text-tertiary">Ready! 🌟</span>
+</div>
+</div>
+</div>
+</div>
+<!-- Giant Action Buttons -->
+<div class="space-y-3 pt-2">
+<button class="w-full h-14 bg-gradient-to-r from-primary via-primary-container to-primary text-on-primary rounded-full shadow-md flex items-center justify-center gap-2 active:scale-95 transition-all" onclick="startPartyMatch()">
+<span class="material-symbols-outlined text-[24px]">rocket_launch</span>
+<span class="font-headline-sm text-headline-sm">Start Party Match! 🚀</span>
+</button>
+<button class="w-full h-12 bg-surface-container-low text-on-surface-variant hover:bg-surface-container hover:text-on-surface rounded-full flex items-center justify-center gap-2 active:scale-95 transition-all" onclick="savePresetNotice()">
+<span class="material-symbols-outlined text-[20px] text-secondary">star</span>
+<span class="font-label-lg text-label-lg">Save as Favorite Preset ⭐</span>
+</button>
+</div>
+<!-- Notification Banner Overlay (Micro-interaction) -->
+<div class="fixed bottom-6 left-4 right-4 bg-inverse-surface text-inverse-on-surface p-3.5 rounded-full shadow-xl flex items-center justify-between opacity-0 pointer-events-none transition-all duration-300 transform translate-y-4 z-50" id="toast-banner">
+<div class="flex items-center gap-2 pl-2">
+<span class="material-symbols-outlined text-[20px] text-tertiary-fixed">check_circle</span>
+<span class="font-label-md text-label-md" id="toast-msg">Room Code Copied to Clipboard!</span>
+</div>
+<span class="material-symbols-outlined text-[18px] pr-2 opacity-70">close</span>
+</div>
+</div>
+<script>
+  let players = 6;
+
+  function showToast(msg) {
+    const toast = document.getElementById('toast-banner');
+    const label = document.getElementById('toast-msg');
+    label.textContent = msg;
+    toast.classList.remove('opacity-0', 'pointer-events-none', 'translate-y-4');
+    toast.classList.add('opacity-100', 'translate-y-0');
+    setTimeout(() => {
+      toast.classList.add('opacity-0', 'pointer-events-none', 'translate-y-4');
+      toast.classList.remove('opacity-100', 'translate-y-0');
+    }, 2400);
+  }
+
+  function triggerCopyToast() {
+    showToast('Room Code #PARTY-77 copied! 📋');
+  }
+
+  function triggerShareNotice() {
+    showToast('Invite link generated! 🎈');
+  }
+
+  function savePresetNotice() {
+    showToast('Saved cozy preset to favorites! ⭐');
+  }
+
+  function startPartyMatch() {
+    showToast('Launching ScribbleX Arena... 🚀');
+  }
+
+  function toggleDeck(element) {
+    const checkPill = element.querySelector('.check-pill');
+    const checkIcon = checkPill.querySelector('.material-symbols-outlined');
+    const isSelected = !checkIcon.classList.contains('hidden');
+
+    if (isSelected) {
+      checkIcon.classList.add('hidden');
+      checkPill.classList.remove('bg-tertiary', 'text-on-tertiary');
+      checkPill.classList.add('bg-surface-container-high', 'text-on-surface-variant');
+      element.classList.add('opacity-80', 'bg-surface-container-low');
+      element.classList.remove('bg-surface-container-lowest', 'shadow-sm');
+    } else {
+      checkIcon.classList.remove('hidden');
+      checkPill.classList.add('bg-tertiary', 'text-on-tertiary');
+      checkPill.classList.remove('bg-surface-container-high', 'text-on-surface-variant');
+      element.classList.remove('opacity-80', 'bg-surface-container-low');
+      element.classList.add('bg-surface-container-lowest', 'shadow-sm');
+    }
+  }
+
+  function selectRounds(btn, num) {
+    document.querySelectorAll('.round-btn').forEach(b => {
+      b.classList.remove('bg-primary', 'text-on-primary', 'shadow-sm');
+      b.classList.add('text-on-surface-variant');
+    });
+    btn.classList.add('bg-primary', 'text-on-primary', 'shadow-sm');
+    btn.classList.remove('text-on-surface-variant');
+  }
+
+  function selectTimer(btn, sec) {
+    document.querySelectorAll('.timer-btn').forEach(b => {
+      b.classList.remove('bg-primary', 'text-on-primary', 'shadow-sm');
+      b.classList.add('text-on-surface-variant');
+    });
+    btn.classList.add('bg-primary', 'text-on-primary', 'shadow-sm');
+    btn.classList.remove('text-on-surface-variant');
+  }
+
+  function adjustPlayers(delta) {
+    players = Math.max(3, Math.min(12, players + delta));
+    document.getElementById('player-count').textContent = players + ' Players 👫';
+  }
+
+  function toggleSwitch(btn) {
+    const isChecked = btn.getAttribute('aria-checked') === 'true';
+    const knob = btn.firstElementChild;
+    if (isChecked) {
+      btn.setAttribute('aria-checked', 'false');
+      btn.classList.remove('bg-primary');
+      btn.classList.add('bg-surface-container-high');
+      knob.classList.remove('translate-x-5');
+      knob.classList.add('translate-x-0');
+    } else {
+      btn.setAttribute('aria-checked', 'true');
+      btn.classList.add('bg-primary');
+      btn.classList.remove('bg-surface-container-high');
+      knob.classList.add('translate-x-5');
+      knob.classList.remove('translate-x-0');
+    }
+  }
+</script></main></body></html>

@@ -8,6 +8,15 @@
 @import "@fontsource/nunito/700.css";
 @import "@fontsource/nunito/800.css";
 
+/* Platform shell: one variable family, its weight and width axes doing the work. */
+@import "@fontsource-variable/bricolage-grotesque";
+
+/* ScribbleX (Warm Doodle Pop) */
+@import "@fontsource/plus-jakarta-sans/700.css";
+@import "@fontsource/plus-jakarta-sans/800.css";
+@import "@fontsource/quicksand/500.css";
+@import "@fontsource/quicksand/600.css";
+
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -186,4 +195,67 @@ select,
 textarea,
 label {
     touch-action: manipulation;
+}
+
+/* ─────────────────────────────────────────────────────────────────────────────
+   Platform shell
+   The shell contributes structure, not colour: ink linework, hard offset shadows
+   and pill geometry — the vocabulary both games already share. Each game's own
+   palette and typeface stay inside that game. See DECISIONS.md D2.
+   ───────────────────────────────────────────────────────────────────────────── */
+
+.font-shell {
+    font-family: "Bricolage Grotesque Variable", "Bricolage Grotesque", system-ui, sans-serif;
+}
+
+/* Tactile press, shared by both design systems: the surface physically moves and its
+   hard shadow collapses under it. Transitions name their properties — never `all`,
+   which would break transforms elsewhere on the page. */
+.press {
+    transition:
+        transform 120ms cubic-bezier(0.2, 0.8, 0.2, 1),
+        box-shadow 120ms cubic-bezier(0.2, 0.8, 0.2, 1),
+        background-color 120ms ease;
+}
+.press:hover {
+    transform: translateY(-2px);
+}
+.press:active {
+    transform: translateY(4px);
+}
+
+/* The seam where the two game territories meet. */
+.seam-x {
+    background: linear-gradient(90deg, transparent, #17161a 18%, #17161a 82%, transparent);
+}
+.seam-y {
+    background: linear-gradient(180deg, transparent, #17161a 18%, #17161a 82%, transparent);
+}
+
+/* ScribbleX paper: warm cream with the dotted grid the canvas sits on. */
+.sx-dots {
+    background-color: #fffdf7;
+    background-image: radial-gradient(#2b262d1f 1px, transparent 1px);
+    background-size: 18px 18px;
+}
+
+/* Hand-cut sticker tilt, used sparingly on badges and stamps. */
+.sx-tilt-a {
+    transform: rotate(-3deg);
+}
+.sx-tilt-b {
+    transform: rotate(2.5deg);
+}
+
+@media (prefers-reduced-motion: reduce) {
+    .press,
+    .press:hover,
+    .press:active {
+        transition: none;
+        transform: none;
+    }
+    .animate-breathe,
+    .animate-floaty {
+        animation: none;
+    }
 }
