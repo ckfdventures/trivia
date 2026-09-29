@@ -1,7 +1,7 @@
 "use client";
 
-import React, { useMemo, useState } from "react";
-import { ArrowLeft, PaperPlaneRight } from "@phosphor-icons/react";
+import React, { useEffect, useMemo, useState } from "react";
+import { ArrowLeft, PaperPlaneRight, SpeakerSimpleHigh, SpeakerSimpleSlash } from "@phosphor-icons/react";
 import { Canvas, type CanvasTool } from "../../components/scribblex/Canvas";
 import { Toolbar } from "../../components/scribblex/Toolbar";
 import { Chip, Toast } from "../../components/scribblex/ui";
@@ -14,9 +14,11 @@ import {
   WordTiles,
 } from "../../components/scribblex/arena";
 import { useServerCountdown } from "../../hooks/useServerCountdown";
+import { useSound } from "../../hooks/useSound";
 import type { ScribbleRoom } from "../../hooks/useScribbleRoom";
 import { BRUSH_SIZES, PALETTE } from "../../lib/scribblex/drawing";
 import { MAX_CHAT_LENGTH } from "../../lib/scribblex/constants";
+import { playSound } from "../../lib/scribblex/sound";
 
 interface Props {
   room: ScribbleRoom;
@@ -38,6 +40,7 @@ export default function Arena({ room, meId, onLeave }: Props) {
   const [color, setColor] = useState<string>(PALETTE[6]);
   const [brush, setBrush] = useState<number>(BRUSH_SIZES[1]);
   const [draft, setDraft] = useState("");
+  const sound = useSound();
 
   const isDrawer = state?.drawer_id === meId && meId !== undefined;
   const me = useMemo(() => state?.players.find((p) => p.id === meId), [state, meId]);
@@ -54,6 +57,12 @@ export default function Arena({ room, meId, onLeave }: Props) {
     timeLimitSeconds: phaseSeconds || 1,
     active: state?.phase === "DRAWING" || state?.phase === "WORD_PICK",
   });
+
+  // A dry tick through the closing seconds. Keyed on the whole second so it fires once each.
+  const ticking = state?.phase === "DRAWING" && remainingSec > 0 && remainingSec <= 10;
+  useEffect(() => {
+    if (ticking) playSound("tick");
+  }, [ticking, remainingSec]);
 
   if (!state) return null;
 
@@ -82,6 +91,15 @@ export default function Arena({ room, meId, onLeave }: Props) {
         <h1 className="min-w-0 flex-1 font-sx-display text-sx-headline-sm text-sx-ink truncate">
           Round {state.round} of {state.total_rounds}
         </h1>
+        <button
+          onClick={sound.toggle}
+          data-testid="sx-sound-toggle"
+          aria-pressed={sound.on}
+          aria-label={sound.on ? "Turn sound off" : "Turn sound on"}
+          className="press grid h-11 w-11 shrink-0 place-items-center rounded-full bg-white border-[2.5px] border-sx-ink shadow-sticker hover:shadow-sticker-hover active:shadow-sticker-press"
+        >
+          {sound.on ? <SpeakerSimpleHigh size={16} weight="bold" /> : <SpeakerSimpleSlash size={16} weight="bold" />}
+        </button>
         <Chip tone={remainingSec <= 10 && remainingSec > 0 ? "bubblegum" : "butter"} data-testid="sx-timer">
           {remainingSec}s
         </Chip>

@@ -4,13 +4,14 @@ import React from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { useNavigate } from "../lib/navigation";
-import { Tag, SignOut, UploadSimple } from "@phosphor-icons/react";
+import { Tag, SignOut, UploadSimple, Cards } from "@phosphor-icons/react";
 import { Logo } from "./Logo";
 import { useAuth } from "../lib/auth";
 
 const items = [
   { to: "/admin/themes", label: "Themes", icon: Tag, testId: "nav-themes" },
   { to: "/admin/upload", label: "Upload questions", icon: UploadSimple, testId: "nav-upload" },
+  { to: "/admin/decks", label: "Word decks", icon: Cards, testId: "nav-decks" },
 ];
 
 export function DashboardLayout({ children }: { children: React.ReactNode }) {

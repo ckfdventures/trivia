@@ -78,22 +78,35 @@ export class ScribbleRoomService {
 
   joinRoom(rawCode: string, profile: PlayerProfile): JoinResult {
     const room = this.requireRoom(rawCode);
-    if (room.phase !== "LOBBY") throw conflict("That match has already started.");
+    if (room.phase === "RESULTS") throw conflict("That match has finished.");
     if (isFull(room)) throw conflict("That room is full.");
 
     const clean = this.validProfile(profile);
     const session = this.seat(room, clean);
+
+    // Joining mid-match: take a turn once the rotation comes round, rather than waiting out
+    // the whole game as a spectator. Appending keeps everyone else's turn order intact.
+    if (room.phase !== "LOBBY") room.drawerOrder.push(session.playerId);
+
     this.notifier.broadcastState(room);
     this.refreshAutostart(room);
     return { room, ...session };
   }
 
-  /** Drop a player into any public lobby with space, opening one if none has room. */
+  /**
+   * Drop a player into a public room with space, opening one if none has any.
+   *
+   * Lobbies first — landing in a game about to start beats landing in one three rounds deep —
+   * and the fullest room first within each group, so players gather rather than scatter across
+   * half-empty rooms. PRD §6.1.
+   */
   quickPlay(profile: PlayerProfile): JoinResult {
-    const candidates = this.store
-      .joinablePublic()
-      .sort((a, b) => b.players.size - a.players.size);
-    const target = candidates[0];
+    const byFullness = (a: Room, b: Room) => b.players.size - a.players.size;
+    const open = this.store.joinablePublic();
+    const lobbies = open.filter((r) => r.phase === "LOBBY").sort(byFullness);
+    const running = open.filter((r) => r.phase !== "LOBBY").sort(byFullness);
+
+    const target = lobbies[0] ?? running[0];
     return target ? this.joinRoom(target.code, profile) : this.createRoom(profile);
   }
 

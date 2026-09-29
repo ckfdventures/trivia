@@ -13,6 +13,9 @@ import {
   HATS,
   isUnlocked,
   levelFor,
+  levelProgress,
+  XP_PER_LEVEL,
+  loadPreset,
   loadProfile,
   loadXp,
   randomProfile,
@@ -55,6 +58,7 @@ export default function Profile() {
   const [error, setError] = useState<string | null>(null);
 
   const level = useMemo(() => levelFor(xp), [xp]);
+  const progress = useMemo(() => levelProgress(xp), [xp]);
   const unlockedCount = useMemo(() => AVATARS.filter((a) => isUnlocked(a, xp)).length, [xp]);
 
   const patch = (next: Partial<ProfileT>) => setProfile((p) => ({ ...p, ...next }));
@@ -73,7 +77,8 @@ export default function Profile() {
     try {
       let seat: Seat;
       if (intent === "join") seat = await joinRoom(code, clean);
-      else if (intent === "create") seat = await createRoom(clean);
+      // A host's saved settings, so they do not rebuild the same room every time.
+      else if (intent === "create") seat = await createRoom(clean, loadPreset() ?? undefined);
       else seat = await quickPlay(clean);
 
       saveSeat({ code: seat.code, player_id: seat.player_id, session_token: seat.session_token });
@@ -95,7 +100,22 @@ export default function Profile() {
         >
           <ArrowLeft size={16} weight="bold" />
         </button>
-        <Chip tone="butter">Level {level}</Chip>
+        <div className="flex items-center gap-sx-sm">
+          <Chip tone="butter" data-testid="sx-level">
+            Level {level}
+          </Chip>
+          {/* Shows the level is something being earned, not a badge that never moves. */}
+          <div
+            className="h-2.5 w-24 overflow-hidden rounded-full border-2 border-sx-ink bg-white"
+            role="progressbar"
+            aria-valuenow={xp % XP_PER_LEVEL}
+            aria-valuemin={0}
+            aria-valuemax={XP_PER_LEVEL}
+            aria-label={`Progress to level ${level + 1}`}
+          >
+            <div className="h-full bg-sx-coral" style={{ width: `${Math.round(progress * 100)}%` }} />
+          </div>
+        </div>
       </header>
 
       <main className="mx-auto w-full max-w-2xl px-sx-md pt-sx-lg">

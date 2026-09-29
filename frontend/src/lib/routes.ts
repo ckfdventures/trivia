@@ -25,6 +25,9 @@ export const routes = {
     home: "/scribblex",
     /** Name and avatar. Carries the intent that sent the player here (`create`/`join`/`quick`). */
     profile: "/scribblex/avatar",
+    /** Public rooms anyone can drop into. */
+    browse: "/scribblex/rooms",
+    rules: "/scribblex/rules",
     room: (code: string) => `/scribblex/room/${code}`,
   },
 

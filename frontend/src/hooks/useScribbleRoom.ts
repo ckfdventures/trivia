@@ -4,6 +4,9 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
 import { BACKEND_URL, SOCKET_PATH } from "../lib/api";
 import { mergeStroke, type DrawOp, type FillOp, type StrokeOp } from "../lib/scribblex/drawing";
+import { addXp, XP_PER_CORRECT_GUESS, XP_PER_MATCH } from "../lib/scribblex/profile";
+import { CHAT_MIN_INTERVAL_MS } from "../lib/scribblex/constants";
+import { playSound } from "../lib/scribblex/sound";
 import type {
   ChatMessage,
   MatchStandings,
@@ -53,6 +56,9 @@ export interface CanvasChannel {
   /** The live op log. Mutable and deliberately outside React state — see the note below. */
   ops: React.RefObject<DrawOp[]>;
   subscribe(listener: (change: CanvasChange) => void): () => void;
+  /** Paint points the local player just made, without touching the network. */
+  paintLocal(op: Omit<StrokeOp, "kind">): void;
+  /** Hand accumulated points to the server. Paints nothing. */
   sendStroke(op: Omit<StrokeOp, "kind">): void;
   sendFill(op: Omit<FillOp, "kind">): void;
   undo(): void;
@@ -102,6 +108,8 @@ export function useScribbleRoom({ code, playerId, token }: Options): ScribbleRoo
   });
 
   const socketRef = useRef<Socket | null>(null);
+  /** When the next guess may go out, so a fast typist never loses one to the rate limit. */
+  const nextGuessAtRef = useRef(0);
   const opsRef = useRef<DrawOp[]>([]);
   const listenersRef = useRef(new Set<(change: CanvasChange) => void>());
 
@@ -138,6 +146,7 @@ export function useScribbleRoom({ code, playerId, token }: Options): ScribbleRoo
       // A new turn wipes what the last one revealed, including this player's copy of the word.
       setTurn({ word: null, mask: data.word_mask ?? [], choices: [], ended: null, standings: null });
       setChat([]);
+      playSound("turnStart");
     });
     socket.on("turn:wordChoices", (data: { words: string[] }) => {
       setTurn((t) => ({ ...t, choices: data.words ?? [] }));
@@ -150,12 +159,27 @@ export function useScribbleRoom({ code, playerId, token }: Options): ScribbleRoo
     });
     socket.on("turn:end", (data: TurnEnd) => {
       setTurn((t) => ({ ...t, ended: data, word: data.word, choices: [] }));
+      // Only when the turn ran out with nobody getting it. Otherwise the chime already played,
+      // and following a win with a losing sound reads as the game disagreeing with itself.
+      if ((data.deltas ?? []).length === 0) playSound("timeUp");
     });
     socket.on("match:end", (data: MatchStandings) => {
       setTurn((t) => ({ ...t, standings: data, ended: null, choices: [] }));
+      playSound("matchEnd");
+      // Progression is awarded here, where each event arrives exactly once, rather than from a
+      // render that could run again. It lives in this browser only (PRD §13.7).
+      addXp(XP_PER_MATCH);
     });
     socket.on("chat:message", (data: ChatMessage) => {
       setChat((lines) => [...lines, data].slice(-MAX_CHAT_LINES));
+      if (data.kind !== "correct") return;
+      // Your own success and someone else's are different events to a player.
+      if (data.from?.id === playerId) {
+        addXp(XP_PER_CORRECT_GUESS);
+        playSound("correct");
+      } else {
+        playSound("someoneGot");
+      }
     });
 
     // ── Canvas
@@ -164,8 +188,10 @@ export function useScribbleRoom({ code, playerId, token }: Options): ScribbleRoo
       notify({ type: "replay" });
     });
     socket.on("draw:stroke", (data: StrokeOp & { player_id: string }) => {
-      opsRef.current = mergeStroke(opsRef.current, { ...data, kind: "stroke" });
-      notify({ type: "op", op: { ...data, kind: "stroke" } });
+      const { ops, merged } = mergeStroke(opsRef.current, { ...data, kind: "stroke" });
+      opsRef.current = ops;
+      // The merged stroke, not the batch: the painter indexes points absolutely.
+      notify({ type: "op", op: merged });
     });
     socket.on("draw:fill", (data: FillOp & { player_id: string }) => {
       const op: FillOp = { ...data, kind: "fill" };
@@ -206,7 +232,16 @@ export function useScribbleRoom({ code, playerId, token }: Options): ScribbleRoo
       start: () => emit("room:start"),
       playAgain: () => emit("room:playAgain"),
       pickWord: (index) => emit("turn:pickWord", { index }),
-      guess: (text) => emit("chat:guess", { text }),
+      guess: (text) => {
+        // The server drops anything sent faster than its limit. Players in a guessing game
+        // type fast and in bursts, and a guess that vanishes with no feedback reads as the
+        // game being broken — so pace them here instead of losing them there.
+        const now = Date.now();
+        const wait = Math.max(0, nextGuessAtRef.current - now);
+        nextGuessAtRef.current = now + wait + CHAT_MIN_INTERVAL_MS;
+        if (wait === 0) emit("chat:guess", { text });
+        else window.setTimeout(() => emit("chat:guess", { text }), wait);
+      },
     }),
     [emit],
   );
@@ -218,10 +253,15 @@ export function useScribbleRoom({ code, playerId, token }: Options): ScribbleRoo
         listenersRef.current.add(listener);
         return () => listenersRef.current.delete(listener);
       },
+      // Painting and sending are separate so the pen never waits for the network. Points are
+      // painted the moment they arrive from the pointer, then sent in batches; the server
+      // never echoes the author's own strokes back, so there is no double-draw.
+      paintLocal(op) {
+        const { ops, merged } = mergeStroke(opsRef.current, { ...op, kind: "stroke" });
+        opsRef.current = ops;
+        notify({ type: "op", op: merged });
+      },
       sendStroke(op) {
-        // Paint locally first, then tell the server; it does not echo this back to us.
-        opsRef.current = mergeStroke(opsRef.current, { ...op, kind: "stroke" });
-        notify({ type: "op", op: { ...op, kind: "stroke" } });
         emit("draw:stroke", op);
       },
       sendFill(op) {

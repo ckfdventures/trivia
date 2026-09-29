@@ -300,17 +300,13 @@ function ScribbleGate() {
           </button>
         </div>
 
-        <p className="font-shell text-sm font-medium text-sx-on-surface-variant/80 mt-4">
-          Rooms and lobbies work.{" "}
-          <button
-            onClick={() => navigate(routes.scribblex.home)}
-            data-testid="scribblex-more-btn"
-            className="underline underline-offset-2 hover:text-sx-primary"
-          >
-            The match itself is next
-          </button>
-          .
-        </p>
+        <button
+          onClick={() => navigate(routes.scribblex.browse)}
+          data-testid="scribblex-browse-btn"
+          className="mt-4 w-full h-12 rounded-full border-2 border-sx-ink/35 text-sx-ink font-shell font-bold hover:bg-sx-ink hover:text-sx-cream focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sx-coral transition-colors"
+        >
+          Browse live rooms
+        </button>
       </div>
     </motion.section>
   );

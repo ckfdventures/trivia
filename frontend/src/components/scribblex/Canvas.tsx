@@ -66,7 +66,9 @@ export function Canvas({ channel, enabled, tool, color, size }: Props) {
     canvas.width = width;
     canvas.height = height;
 
-    const ctx = canvas.getContext("2d", { willReadFrequently: true });
+    // No `willReadFrequently`: it moves the context off the GPU to optimise getImageData,
+    // which would slow every stroke to speed up the occasional bucket fill.
+    const ctx = canvas.getContext("2d");
     if (!ctx) return;
     // The painter works in device pixels, so normalised points and brush widths scale with the
     // backing store and flood fill reads the buffer it actually painted.
@@ -96,6 +98,21 @@ export function Canvas({ channel, enabled, tool, color, size }: Props) {
     [channel],
   );
 
+  /** Paint immediately, and queue the same points for the next network batch. */
+  const addPoints = useCallback(
+    (points: Point[]) => {
+      const stroke = strokeRef.current;
+      if (!stroke || points.length === 0) return;
+      const { tool: t, color: c, size: s } = settingsRef.current;
+      const meta = { id: stroke.id, tool: t === "fill" ? ("pencil" as const) : t, color: c, size: s };
+
+      channel.paintLocal({ ...meta, points });
+      stroke.pending.push(...points);
+    },
+    [channel],
+  );
+
+  /** Hand whatever has accumulated to the server. Paints nothing — that already happened. */
   const flush = useCallback(() => {
     const stroke = strokeRef.current;
     if (!stroke || stroke.pending.length === 0) return;
@@ -138,25 +155,27 @@ export function Canvas({ channel, enabled, tool, color, size }: Props) {
     }
 
     e.currentTarget.setPointerCapture(e.pointerId);
-    strokeRef.current = { id: newId(), pending: [point] };
-    flush();
+    strokeRef.current = { id: newId(), pending: [] };
+    addPoints([point]);
     stopBatching();
     flushTimerRef.current = window.setInterval(flush, BATCH_INTERVAL_MS);
   };
 
   const onPointerMove = (e: React.PointerEvent<HTMLCanvasElement>) => {
     if (!strokeRef.current || !settingsRef.current.enabled) return;
-    // Coalesced events keep fast strokes smooth without flooding the socket.
-    const events = typeof e.nativeEvent.getCoalescedEvents === "function"
-      ? e.nativeEvent.getCoalescedEvents()
-      : [e.nativeEvent];
+    // Coalesced events recover the positions the browser dropped between frames, so a fast
+    // stroke stays smooth instead of turning into straight chords between samples.
+    const events =
+      typeof e.nativeEvent.getCoalescedEvents === "function"
+        ? e.nativeEvent.getCoalescedEvents()
+        : [e.nativeEvent];
     const rect = e.currentTarget.getBoundingClientRect();
-    for (const ev of events) {
-      strokeRef.current.pending.push({
+    addPoints(
+      events.map((ev) => ({
         x: Math.min(1, Math.max(0, (ev.clientX - rect.left) / rect.width)),
         y: Math.min(1, Math.max(0, (ev.clientY - rect.top) / rect.height)),
-      });
-    }
+      })),
+    );
   };
 
   const endStroke = (e: React.PointerEvent<HTMLCanvasElement>) => {

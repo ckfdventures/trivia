@@ -69,41 +69,59 @@ describe("within", () => {
 
 describe("mergeStroke", () => {
   it("starts a stroke that has not been seen before", () => {
-    const ops = mergeStroke([], stroke("s1", [{ x: 0, y: 0 }]));
+    const { ops, merged } = mergeStroke([], stroke("s1", [{ x: 0, y: 0 }]));
     expect(ops).toHaveLength(1);
-    expect((ops[0] as StrokeOp).points).toHaveLength(1);
+    expect(merged.points).toHaveLength(1);
   });
 
-  it("appends later batches to the stroke already in the log", () => {
-    let ops: DrawOp[] = mergeStroke([], stroke("s1", [{ x: 0, y: 0 }]));
-    ops = mergeStroke(ops, stroke("s1", [{ x: 0.5, y: 0.5 }]));
-    ops = mergeStroke(ops, stroke("s1", [{ x: 1, y: 1 }]));
+  it("returns the whole stroke, not just the batch that arrived", () => {
+    // The regression this file exists for. The painter tracks how many points of a stroke it
+    // has drawn and indexes into `points` absolutely, so it must be handed every point so far.
+    // Handed only the newest batch, it skipped the join between batches — and when a batch
+    // held one point, its index ran past the end and it drew nothing. Strokes came out as
+    // disconnected fragments and, at speed, as isolated dots.
+    let ops: DrawOp[] = [];
+    let merged: StrokeOp;
 
+    ({ ops, merged } = mergeStroke(ops, stroke("s1", [{ x: 0, y: 0 }])));
+    expect(merged.points).toHaveLength(1);
+
+    ({ ops, merged } = mergeStroke(ops, stroke("s1", [{ x: 0.1, y: 0.1 }, { x: 0.2, y: 0.2 }])));
+    expect(merged.points).toHaveLength(3);
+
+    // A single-point batch is the case that used to render nothing at all.
+    ({ ops, merged } = mergeStroke(ops, stroke("s1", [{ x: 0.3, y: 0.3 }])));
+    expect(merged.points).toHaveLength(4);
+    expect(merged.points.at(-1)).toEqual({ x: 0.3, y: 0.3 });
+  });
+
+  it("keeps the log and the merged stroke pointing at the same object", () => {
+    // The painter is given `merged` while later batches are appended to the op inside `ops`;
+    // if they diverged, a replay and an incremental draw would disagree.
+    let { ops, merged } = mergeStroke([], stroke("s1", [{ x: 0, y: 0 }]));
+    expect(ops[0]).toBe(merged);
+
+    ({ ops, merged } = mergeStroke(ops, stroke("s1", [{ x: 1, y: 1 }])));
+    expect(ops[0]).toBe(merged);
     expect(ops).toHaveLength(1);
-    expect((ops[0] as StrokeOp).points).toEqual([
-      { x: 0, y: 0 },
-      { x: 0.5, y: 0.5 },
-      { x: 1, y: 1 },
-    ]);
   });
 
   it("keeps separate strokes separate", () => {
-    let ops: DrawOp[] = mergeStroke([], stroke("s1", [{ x: 0, y: 0 }]));
-    ops = mergeStroke(ops, stroke("s2", [{ x: 1, y: 1 }]));
+    let { ops } = mergeStroke([], stroke("s1", [{ x: 0, y: 0 }]));
+    ({ ops } = mergeStroke(ops, stroke("s2", [{ x: 1, y: 1 }])));
     expect(ops.map((o) => o.id)).toEqual(["s1", "s2"]);
   });
 
   it("copies the incoming points rather than aliasing the caller's array", () => {
     const incoming = stroke("s1", [{ x: 0, y: 0 }]);
-    const ops = mergeStroke([], incoming);
+    const { ops } = mergeStroke([], incoming);
     incoming.points.push({ x: 9, y: 9 });
-
     expect((ops[0] as StrokeOp).points).toHaveLength(1);
   });
 
   it("leaves a fill in place when a stroke shares nothing with it", () => {
     const fill: DrawOp = { kind: "fill", id: "f1", color: PALETTE[0], x: 0.5, y: 0.5 };
-    const ops = mergeStroke([fill], stroke("s1", [{ x: 0, y: 0 }]));
+    const { ops } = mergeStroke([fill], stroke("s1", [{ x: 0, y: 0 }]));
     expect(ops.map((o) => o.kind)).toEqual(["fill", "stroke"]);
   });
 });

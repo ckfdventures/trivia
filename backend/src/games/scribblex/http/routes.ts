@@ -44,9 +44,18 @@ export function createScribbleRouter(
     res.json(await decks.list());
   });
 
-  /** Public rooms a stranger can join, for the home page browser. */
+  /**
+   * The public room browser. Lists every public room, full and in-progress included, each
+   * carrying its own `joinable` flag — a list that quietly hid full rooms would make the
+   * count disagree with what a player can see happening.
+   */
   router.get("/rooms", (_req, res) => {
-    res.json(store.joinablePublic().map(toRoomSummary));
+    const rooms = store
+      .public()
+      .map(toRoomSummary)
+      // Joinable first, then the busiest: what a browser is looking for is a game to get into.
+      .sort((a, b) => Number(b.joinable) - Number(a.joinable) || b.player_count - a.player_count);
+    res.json(rooms);
   });
 
   router.post("/rooms", (req, res) => {

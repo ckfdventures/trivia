@@ -1,3 +1,4 @@
+import { randomRoomIdentity } from "../data/room-names.js";
 import { createCanvas, type CanvasState } from "./drawing.js";
 import {
   DEFAULT_MAX_PLAYERS,
@@ -75,6 +76,9 @@ export interface Player extends PlayerProfile {
 
 export interface Room {
   code: string;
+  /** Shown to strangers browsing public rooms. Chosen from a fixed list, never typed. */
+  name: string;
+  emoji: string;
   hostId: string;
   createdAt: number;
   settings: RoomSettings;
@@ -118,8 +122,11 @@ export function createRoom(params: {
   hostId: string;
   settings?: Partial<RoomSettings>;
 }): Room {
+  const identity = randomRoomIdentity();
   return {
     code: params.code,
+    name: identity.name,
+    emoji: identity.emoji,
     hostId: params.hostId,
     createdAt: Date.now(),
     settings: { ...defaultSettings(), ...params.settings },
@@ -177,6 +184,17 @@ export function isFull(room: Room): boolean {
 export function everyoneReady(room: Room): boolean {
   const others = [...room.players.values()].filter((p) => p.id !== room.hostId);
   return others.length > 0 && others.every((p) => p.ready);
+}
+
+/**
+ * Whether someone may still come in.
+ *
+ * A match in progress accepts latecomers — they guess along with everyone else and take a turn
+ * once the rotation reaches them. Only a finished match is closed, since there is nothing left
+ * to join but a podium. PRD §6.1 lists in-progress rooms as joinable.
+ */
+export function isJoinable(room: Room): boolean {
+  return room.phase !== "RESULTS" && room.players.size < room.settings.maxPlayers;
 }
 
 /** Somewhere to draw words from. A room can exist without one; a match cannot start without one. */
