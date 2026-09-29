@@ -1,4 +1,4 @@
-import { conflict, forbidden, notFound } from "../../../shared/http-error.js";
+import { badRequest, conflict, forbidden, notFound } from "../../../shared/http-error.js";
 import type { Logger } from "../../../shared/logger.js";
 import { clear as clearCanvas } from "../domain/drawing.js";
 import {
@@ -21,7 +21,7 @@ import {
 import { buildStandings, pointsForDrawer, pointsForGuess } from "../domain/scoring.js";
 import { judgeGuess, maskWord, nextHintIndex, normalizeWord, revealsWord } from "../domain/words.js";
 import type { WordSource } from "./deck.service.js";
-import type { ScribbleRoomNotifier } from "./room-notifier.js";
+import { ScribbleEvents, type ScribbleRoomNotifier } from "./room-notifier.js";
 import type { ScribbleRoomStore } from "./room-store.js";
 
 export const MatchEvents = {
@@ -58,18 +58,35 @@ export class ScribbleMatchService {
   // ── Starting ───────────────────────────────────────────────────────────────
 
   /** Host-triggered start. */
-  start(code: string, playerId: string): void {
+  async start(code: string, playerId: string): Promise<void> {
     const room = this.requireRoom(code);
     if (room.hostId !== playerId) throw forbidden("Only the host can start the match.");
     const gate = canStart(room);
     if (!gate.ok) throw conflict(gate.reason ?? "Not ready to start.");
-    void this.begin(room);
+
+    // Chosen decks can be empty — an owner may have created one and not filled it yet. Having
+    // picked a deck is not the same as having words, and finding that out after starting drops
+    // everyone onto a blank podium with nothing said.
+    await this.requireWords(room);
+    await this.begin(room);
   }
 
   /** Used by the public-lobby countdown, which has no player behind it. */
-  autoStart(room: Room): void {
+  async autoStart(room: Room): Promise<void> {
     if (room.phase !== "LOBBY" || !canStart(room).ok) return;
-    void this.begin(room);
+    try {
+      await this.requireWords(room);
+    } catch {
+      // Nobody asked for this start, so there is nobody to tell. Leave the lobby as it is.
+      return;
+    }
+    await this.begin(room);
+  }
+
+  /** Throws if the room's decks and custom words between them offer nothing to draw. */
+  private async requireWords(room: Room): Promise<void> {
+    const choices = await this.words.drawChoices(room.settings, new Set());
+    if (choices.length === 0) throw badRequest("Those decks have no words in them yet.");
   }
 
   private async begin(room: Room): Promise<void> {
@@ -132,6 +149,10 @@ export class ScribbleMatchService {
       choices = await this.words.drawChoices(room.settings, room.usedWords);
     } catch (err) {
       this.logger.error(`scribblex: no words available in ${room.code}`, err);
+      // A deck can be emptied or deleted while a match is running.
+      this.notifier.broadcast(room, ScribbleEvents.Error, {
+        message: "Ran out of words to play with. Ending the match.",
+      });
       this.finish(room);
       return;
     }
