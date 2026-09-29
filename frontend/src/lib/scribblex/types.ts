@@ -53,6 +53,9 @@ export type SettingsPatch = Partial<
 export interface RoomState {
   code: string;
   display_code: string;
+  /** Shown to strangers browsing public rooms. Chosen from a fixed list, never typed. */
+  name: string;
+  emoji: string;
   host_id: string;
   phase: RoomPhase;
   settings: RoomSettings;
@@ -81,11 +84,15 @@ export interface DeckSummary {
 export interface RoomSummary {
   code: string;
   display_code: string;
+  name: string;
+  emoji: string;
   phase: RoomPhase;
   player_count: number;
   max_players: number;
   round: number;
   total_rounds: number;
+  /** False when the room is full or the match has finished. */
+  joinable: boolean;
 }
 
 /** What the server hands back when you create or join — enough to open a socket. */

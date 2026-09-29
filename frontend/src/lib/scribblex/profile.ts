@@ -52,9 +52,12 @@ export const findHat = (id: string | null): Hat | null =>
 
 export const XP_PER_MATCH = 10;
 export const XP_PER_CORRECT_GUESS = 5;
-const XP_PER_LEVEL = 100;
+export const XP_PER_LEVEL = 100;
 
 export const levelFor = (xp: number): number => Math.floor(xp / XP_PER_LEVEL) + 1;
+
+/** How far through the current level, 0–1. */
+export const levelProgress = (xp: number): number => (xp % XP_PER_LEVEL) / XP_PER_LEVEL;
 
 export const isUnlocked = (avatar: Avatar, xp: number): boolean =>
   !avatar.unlockLevel || levelFor(xp) >= avatar.unlockLevel;

@@ -1,5 +1,5 @@
 import { generateRoomCode } from "../domain/codes.js";
-import type { Room } from "../domain/room.js";
+import { isJoinable, type Room } from "../domain/room.js";
 
 /**
  * In-memory registry of live ScribbleX rooms, keyed by code.
@@ -29,14 +29,14 @@ export class ScribbleRoomStore {
     return [...this.rooms.values()];
   }
 
-  /** Rooms a stranger may be dropped into: public, in a lobby, and not yet full. */
+  /** Rooms a stranger may be dropped into: public, not finished, and not yet full. */
   joinablePublic(): Room[] {
-    return this.all().filter(
-      (r) =>
-        !r.settings.isPrivate &&
-        r.phase === "LOBBY" &&
-        r.players.size < r.settings.maxPlayers,
-    );
+    return this.all().filter((r) => !r.settings.isPrivate && isJoinable(r));
+  }
+
+  /** Every public room, joinable or not — the browser shows full rooms too, greyed out. */
+  public(): Room[] {
+    return this.all().filter((r) => !r.settings.isPrivate);
   }
 
   generateCode(): string {

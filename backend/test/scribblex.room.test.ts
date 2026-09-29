@@ -97,10 +97,27 @@ describe("creating and joining", () => {
     expect(() => service.joinRoom(room.code, profile("Third"))).toThrow(/full/i);
   });
 
-  it("refuses a match already under way", () => {
+  it("lets a latecomer into a match already under way", () => {
     const { service, code, host } = readyRoom();
+    host.room.drawerOrder = [host.playerId];
     host.room.phase = "DRAWING";
-    expect(() => service.joinRoom(code, profile("Latecomer"))).toThrow(/already started/i);
+
+    const late = service.joinRoom(code, profile("Latecomer"));
+    expect(late.room.players.has(late.playerId)).toBe(true);
+    // They draw once the rotation reaches them, without disturbing anyone else's turn.
+    expect(host.room.drawerOrder).toEqual([host.playerId, late.playerId]);
+  });
+
+  it("does not add a lobby joiner to a turn order that does not exist yet", () => {
+    const { service, code, host } = readyRoom();
+    service.joinRoom(code, profile("Third"));
+    expect(host.room.drawerOrder).toEqual([]);
+  });
+
+  it("refuses a match that has finished", () => {
+    const { service, code, host } = readyRoom();
+    host.room.phase = "RESULTS";
+    expect(() => service.joinRoom(code, profile("Latecomer"))).toThrow(/finished/i);
   });
 
   it("refuses an unknown code", () => {
@@ -389,7 +406,7 @@ describe("public lobby auto-start", () => {
 });
 
 describe("public room browser", () => {
-  it("lists only public lobbies with space", () => {
+  it("offers public rooms with space, and not private or full ones", () => {
     const { store, service } = setup();
     const open = service.createRoom(profile("A"), { decks: ["d"] });
     const priv = service.createRoom(profile("B"), { decks: ["d"], is_private: true });
@@ -400,5 +417,71 @@ describe("public room browser", () => {
     expect(codes).toContain(open.room.code);
     expect(codes).not.toContain(priv.room.code);
     expect(codes).not.toContain(full.room.code);
+  });
+
+  it("still lists a full public room, so the browser's count is honest", () => {
+    const { store, service } = setup();
+    const full = service.createRoom(profile("C"), { decks: ["d"], max_players: 2 });
+    service.joinRoom(full.room.code, profile("D"));
+    const priv = service.createRoom(profile("B"), { decks: ["d"], is_private: true });
+
+    const codes = store.public().map((r) => r.code);
+    expect(codes).toContain(full.room.code);
+    expect(codes).not.toContain(priv.room.code);
+  });
+
+  it("counts a room in progress as joinable", () => {
+    const { store, service } = setup();
+    const running = service.createRoom(profile("A"), { decks: ["d"] });
+    running.room.phase = "DRAWING";
+    expect(store.joinablePublic().map((r) => r.code)).toContain(running.room.code);
+  });
+
+  it("gives every room a name from the fixed list, never a typed one", () => {
+    const { service } = setup();
+    const { room } = service.createRoom(profile("A"));
+    expect(room.name).toBeTruthy();
+    expect(room.emoji).toBeTruthy();
+    expect(toPublicRoomState(room).name).toBe(room.name);
+  });
+});
+
+describe("quick play", () => {
+  it("prefers a lobby over a match already running", () => {
+    const { service } = setup();
+    const running = service.createRoom(profile("A"), { decks: ["d"] });
+    service.joinRoom(running.room.code, profile("A2"));
+    service.joinRoom(running.room.code, profile("A3"));
+    running.room.phase = "DRAWING";
+
+    const lobby = service.createRoom(profile("B"), { decks: ["d"] });
+
+    // The running room is fuller, but landing in a game about to start is the better arrival.
+    expect(service.quickPlay(profile("Drifter")).room.code).toBe(lobby.room.code);
+  });
+
+  it("falls back to a running match when no lobby has space", () => {
+    const { service } = setup();
+    const running = service.createRoom(profile("A"), { decks: ["d"] });
+    running.room.phase = "DRAWING";
+    expect(service.quickPlay(profile("Drifter")).room.code).toBe(running.room.code);
+  });
+
+  it("gathers players into the fullest lobby rather than scattering them", () => {
+    const { service } = setup();
+    const quiet = service.createRoom(profile("A"), { decks: ["d"] });
+    const busy = service.createRoom(profile("B"), { decks: ["d"] });
+    service.joinRoom(busy.room.code, profile("B2"));
+
+    expect(service.quickPlay(profile("Drifter")).room.code).toBe(busy.room.code);
+    expect(quiet.room.players.size).toBe(1);
+  });
+
+  it("opens a room when there is nothing public to join", () => {
+    const { service } = setup();
+    service.createRoom(profile("A"), { decks: ["d"], is_private: true });
+    const result = service.quickPlay(profile("Drifter"));
+    expect(result.room.players.size).toBe(1);
+    expect(result.room.settings.isPrivate).toBe(false);
   });
 });

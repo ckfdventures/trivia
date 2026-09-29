@@ -13,6 +13,8 @@ import {
   HATS,
   isUnlocked,
   levelFor,
+  levelProgress,
+  XP_PER_LEVEL,
   loadProfile,
   loadXp,
   randomProfile,
@@ -55,6 +57,7 @@ export default function Profile() {
   const [error, setError] = useState<string | null>(null);
 
   const level = useMemo(() => levelFor(xp), [xp]);
+  const progress = useMemo(() => levelProgress(xp), [xp]);
   const unlockedCount = useMemo(() => AVATARS.filter((a) => isUnlocked(a, xp)).length, [xp]);
 
   const patch = (next: Partial<ProfileT>) => setProfile((p) => ({ ...p, ...next }));
@@ -95,7 +98,22 @@ export default function Profile() {
         >
           <ArrowLeft size={16} weight="bold" />
         </button>
-        <Chip tone="butter">Level {level}</Chip>
+        <div className="flex items-center gap-sx-sm">
+          <Chip tone="butter" data-testid="sx-level">
+            Level {level}
+          </Chip>
+          {/* Shows the level is something being earned, not a badge that never moves. */}
+          <div
+            className="h-2.5 w-24 overflow-hidden rounded-full border-2 border-sx-ink bg-white"
+            role="progressbar"
+            aria-valuenow={xp % XP_PER_LEVEL}
+            aria-valuemin={0}
+            aria-valuemax={XP_PER_LEVEL}
+            aria-label={`Progress to level ${level + 1}`}
+          >
+            <div className="h-full bg-sx-coral" style={{ width: `${Math.round(progress * 100)}%` }} />
+          </div>
+        </div>
       </header>
 
       <main className="mx-auto w-full max-w-2xl px-sx-md pt-sx-lg">

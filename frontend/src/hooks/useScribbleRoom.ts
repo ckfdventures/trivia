@@ -4,6 +4,7 @@ import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
 import { BACKEND_URL, SOCKET_PATH } from "../lib/api";
 import { mergeStroke, type DrawOp, type FillOp, type StrokeOp } from "../lib/scribblex/drawing";
+import { addXp, XP_PER_CORRECT_GUESS, XP_PER_MATCH } from "../lib/scribblex/profile";
 import type {
   ChatMessage,
   MatchStandings,
@@ -156,9 +157,13 @@ export function useScribbleRoom({ code, playerId, token }: Options): ScribbleRoo
     });
     socket.on("match:end", (data: MatchStandings) => {
       setTurn((t) => ({ ...t, standings: data, ended: null, choices: [] }));
+      // Progression is awarded here, where each event arrives exactly once, rather than from a
+      // render that could run again. It lives in this browser only (PRD §13.7).
+      addXp(XP_PER_MATCH);
     });
     socket.on("chat:message", (data: ChatMessage) => {
       setChat((lines) => [...lines, data].slice(-MAX_CHAT_LINES));
+      if (data.kind === "correct" && data.from?.id === playerId) addXp(XP_PER_CORRECT_GUESS);
     });
 
     // ── Canvas

@@ -1,5 +1,5 @@
 import { formatRoomCode } from "./codes.js";
-import { canStart, playersByArrival, type Player, type Room } from "./room.js";
+import { canStart, isJoinable, playersByArrival, type Player, type Room } from "./room.js";
 import { maskWord } from "./words.js";
 
 /**
@@ -41,6 +41,8 @@ export function toPublicRoomState(room: Room) {
   return {
     code: room.code,
     display_code: formatRoomCode(room.code),
+    name: room.name,
+    emoji: room.emoji,
     host_id: room.hostId,
     phase: room.phase,
     settings: {
@@ -79,10 +81,14 @@ export function toRoomSummary(room: Room) {
   return {
     code: room.code,
     display_code: formatRoomCode(room.code),
+    name: room.name,
+    emoji: room.emoji,
     phase: room.phase,
     player_count: room.players.size,
     max_players: room.settings.maxPlayers,
     round: room.round,
     total_rounds: room.settings.rounds,
+    /** A browser can list a room it cannot join, but it should not offer the button. */
+    joinable: isJoinable(room),
   };
 }
