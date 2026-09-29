@@ -2,9 +2,13 @@ import type { Server as HttpServer } from "node:http";
 import { Server, type Socket } from "socket.io";
 import { z } from "zod";
 import type { RoomConnection } from "../domain/room.js";
+import { attachScribbleSocket } from "../games/scribblex/realtime/gateway.js";
+import type { ScribbleRoomNotifier } from "../games/scribblex/services/room-notifier.js";
+import type { ScribbleRoomService } from "../games/scribblex/services/room.service.js";
 import type { PresenceService } from "../services/presence.service.js";
 import { RoomEvents } from "../services/room-notifier.js";
 import type { VoiceService } from "../services/voice.service.js";
+import type { Logger } from "../shared/logger.js";
 
 /** Socket.IO endpoint path; kept under /api so one ingress rule routes REST and realtime to the backend. */
 export const SOCKET_PATH = "/api/socket.io";
@@ -69,17 +73,28 @@ function attachVoiceHandlers(socket: Socket, voice: VoiceService, pin: string, p
   socket.on("disconnect", () => voice.disconnect(pin, conn));
 }
 
+export interface GatewayDeps {
+  presence: PresenceService;
+  voice: VoiceService;
+  scribbleRooms: ScribbleRoomService;
+  scribbleNotifier: ScribbleRoomNotifier;
+  logger: Logger;
+}
+
 /**
- * Clients connect with `io(url, { path: SOCKET_PATH, auth: { pin, role: "host" | "player", token } })`
- * and receive `room_state`, `game_started`, `answer_received`, `promoted_to_host`, `host_changed`
- * and `error` events. Invalid handshakes get an `error` event and are disconnected.
+ * One Socket.IO endpoint serves every game; the handshake's `role` decides which one.
+ *
+ * Trivia clients connect with `auth: { pin, role: "host" | "player" | "voice", token }` and
+ * receive `room_state`, `game_started`, `answer_received`, `promoted_to_host`, `host_changed`
+ * and `error`. ScribbleX clients use `role: "scribblex"` and are handled in that game's own
+ * module. Invalid handshakes get an `error` event and are disconnected.
  */
 export function attachSocketGateway(
   httpServer: HttpServer,
-  presence: PresenceService,
-  voice: VoiceService,
+  deps: GatewayDeps,
   corsOrigin: string | string[],
 ): Server {
+  const { presence, voice } = deps;
   const io = new Server(httpServer, { path: SOCKET_PATH, cors: { origin: corsOrigin } });
 
   io.on("connection", (socket) => {
@@ -89,6 +104,14 @@ export function attachSocketGateway(
       socket.emit(RoomEvents.Error, { message });
       socket.disconnect(true);
     };
+
+    if (role === "scribblex") {
+      // The ScribbleX module emits its own error event before returning false.
+      if (!attachScribbleSocket(socket, deps.scribbleRooms, deps.scribbleNotifier, deps.logger)) {
+        socket.disconnect(true);
+      }
+      return;
+    }
 
     if (role === "voice") {
       const result = voice.connect(pin, token, conn);

@@ -1,6 +1,7 @@
 import cors from "cors";
 import express, { type Express } from "express";
 import type { Container } from "./container.js";
+import { createScribbleRouter } from "./games/scribblex/http/routes.js";
 import { createErrorHandler, notFoundHandler } from "./http/middleware/errors.js";
 import { createAdminRouter } from "./http/routes/admin.routes.js";
 import { createAuthRouter } from "./http/routes/auth.routes.js";
@@ -26,6 +27,7 @@ export function createApp(c: Container): Express {
   api.use("/auth", createAuthRouter(c.authService, c.authMiddleware));
   api.use("/themes", createThemeRouter(c.themeService));
   api.use("/rooms", createRoomRouter(c.gameService, c.voiceService));
+  api.use("/scribblex", createScribbleRouter(c.scribbleRooms, c.scribbleStore));
   api.use("/admin", createAdminRouter(c.themeService, c.questionFileParser, c.questionImport, c.authMiddleware));
 
   app.use("/api", api);

@@ -1,5 +1,9 @@
 import type { Db } from "mongodb";
 import type { AppConfig } from "./config/env.js";
+import { ScribbleRoomCleanupJob } from "./games/scribblex/jobs/room-cleanup.job.js";
+import { ScribbleRoomNotifier } from "./games/scribblex/services/room-notifier.js";
+import { ScribbleRoomService } from "./games/scribblex/services/room.service.js";
+import { ScribbleRoomStore } from "./games/scribblex/services/room-store.js";
 import { createAuthMiddleware } from "./http/middleware/auth.js";
 import { RoomCleanupJob } from "./jobs/room-cleanup.job.js";
 import { MongoQuestionRepository } from "./repositories/question.repository.js";
@@ -51,6 +55,12 @@ export function createContainer(config: AppConfig, db: Db, logger: Logger, optio
     : new StunOnlyIceServers();
   const voiceService = new VoiceService(roomStore, iceServers, logger);
 
+  // ScribbleX keeps its own room registry; the two games share only the profanity filter
+  // until the room layer is generalised (DECISIONS.md D5).
+  const scribbleStore = new ScribbleRoomStore();
+  const scribbleNotifier = new ScribbleRoomNotifier(scribbleStore);
+  const scribbleRooms = new ScribbleRoomService(scribbleStore, scribbleNotifier, profanity);
+
   return {
     config,
     logger,
@@ -63,7 +73,13 @@ export function createContainer(config: AppConfig, db: Db, logger: Logger, optio
     gameService,
     presence,
     voiceService,
-    jobs: [new RoomCleanupJob(roomStore, gameService, logger)],
+    scribbleStore,
+    scribbleNotifier,
+    scribbleRooms,
+    jobs: [
+      new RoomCleanupJob(roomStore, gameService, logger),
+      new ScribbleRoomCleanupJob(scribbleStore, logger),
+    ],
     /** One-time startup work: indexes and the admin account. */
     async initialize(): Promise<void> {
       await Promise.all([themeRepo.ensureIndexes(), questionRepo.ensureIndexes()]);
