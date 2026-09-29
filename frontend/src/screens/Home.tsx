@@ -8,6 +8,7 @@ import { AnswerShape } from "../components/AnswerShape";
 import { GAMES, PLATFORM_NAME } from "../lib/brand";
 import { useNavigate } from "../lib/navigation";
 import { routes } from "../lib/routes";
+import { normalizeRoomCode, ROOM_CODE_LENGTH } from "../lib/scribblex/constants";
 
 /**
  * The platform home: two game territories meeting at an ink seam.
@@ -206,6 +207,24 @@ function TriviaGate() {
 
 function ScribbleGate() {
   const navigate = useNavigate();
+  const [code, setCode] = useState("");
+  const [error, setError] = useState("");
+
+  const toProfile = (intent: "create" | "join" | "quick", roomCode?: string) => {
+    const query = new URLSearchParams({ intent });
+    if (roomCode) query.set("code", roomCode);
+    navigate(`${routes.scribblex.profile}?${query.toString()}`);
+  };
+
+  const submit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const clean = normalizeRoomCode(code);
+    if (!clean) {
+      setError(`Room codes are ${ROOM_CODE_LENGTH} letters and numbers.`);
+      return;
+    }
+    toProfile("join", clean);
+  };
 
   return (
     <motion.section
@@ -216,19 +235,14 @@ function ScribbleGate() {
       <div className="relative z-10 w-full max-w-md mx-auto lg:mx-0 lg:mr-auto lg:ml-14">
         <Scribble />
 
-        <div className="flex items-center gap-3 mt-7">
-          <h1 className="font-shell text-[13vw] sm:text-[64px] lg:text-[72px] leading-[0.92] font-extrabold tracking-[-0.03em]">
-            {GAMES.scribblex.name}
-          </h1>
-          <span className="sx-tilt-b shrink-0 rounded-full bg-sx-butter border-[1.5px] border-sx-ink px-3 py-1 font-shell text-xs font-extrabold">
-            Soon
-          </span>
-        </div>
+        <h1 className="font-shell text-[13vw] sm:text-[64px] lg:text-[72px] leading-[0.92] font-extrabold tracking-[-0.03em] mt-7">
+          {GAMES.scribblex.name}
+        </h1>
         <p className="font-shell text-lg font-medium text-sx-on-surface-variant mt-3 max-w-xs">
           {GAMES.scribblex.tagline}
         </p>
 
-        <div className="mt-9">
+        <form onSubmit={submit} className="mt-9">
           <label
             htmlFor="sx-code"
             className="font-shell text-sm font-bold text-sx-on-surface-variant block mb-2"
@@ -237,28 +251,66 @@ function ScribbleGate() {
           </label>
           <input
             id="sx-code"
-            disabled
-            placeholder="ABC123"
+            autoComplete="off"
+            autoCapitalize="characters"
+            maxLength={ROOM_CODE_LENGTH + 1}
+            value={code}
+            onChange={(e) => {
+              setError("");
+              setCode(e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g, ""));
+            }}
+            placeholder="ABC-234"
             data-testid="scribblex-code-input"
-            className="w-full h-16 rounded-2xl bg-white border-[2.5px] border-sx-ink text-sx-ink font-shell font-extrabold text-3xl text-center tracking-[0.3em] indent-[0.3em] placeholder:text-sx-ink/20 disabled:cursor-not-allowed disabled:opacity-55"
+            aria-describedby={error ? "sx-code-error" : undefined}
+            className="w-full h-16 rounded-2xl bg-white border-[2.5px] border-sx-ink text-sx-ink font-shell font-extrabold text-3xl text-center tracking-[0.2em] indent-[0.2em] placeholder:text-sx-ink/20 focus:outline-none focus:shadow-[0_4px_0_#FF7A59]"
           />
+          {error && (
+            <p
+              id="sx-code-error"
+              data-testid="scribblex-code-error"
+              className="font-shell text-sm font-bold text-sx-primary mt-2"
+            >
+              {error}
+            </p>
+          )}
 
           <button
-            disabled
+            type="submit"
             data-testid="scribblex-join-btn"
-            className="mt-4 w-full h-14 rounded-full bg-sx-coral text-sx-ink border-[2.5px] border-sx-ink font-shell font-extrabold text-lg shadow-sticker disabled:cursor-not-allowed disabled:opacity-55"
+            className="press mt-4 w-full h-14 rounded-full bg-sx-coral text-sx-ink border-[2.5px] border-sx-ink font-shell font-extrabold text-lg shadow-sticker hover:shadow-sticker-hover active:shadow-sticker-press focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sx-ink"
           >
             Join room
           </button>
+        </form>
+
+        <div className="mt-4 grid grid-cols-2 gap-3">
+          <button
+            onClick={() => toProfile("quick")}
+            data-testid="scribblex-quick-btn"
+            className="h-12 rounded-full border-2 border-sx-ink text-sx-ink font-shell font-bold bg-sx-butter hover:bg-sx-secondary-fixed focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sx-coral transition-colors"
+          >
+            Quick play
+          </button>
+          <button
+            onClick={() => toProfile("create")}
+            data-testid="scribblex-create-btn"
+            className="h-12 rounded-full border-2 border-sx-ink/35 text-sx-ink font-shell font-bold hover:bg-sx-ink hover:text-sx-cream focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sx-coral transition-colors"
+          >
+            Make a room
+          </button>
         </div>
 
-        <button
-          onClick={() => navigate(routes.scribblex.home)}
-          data-testid="scribblex-more-btn"
-          className="mt-4 w-full h-12 rounded-full border-2 border-sx-ink/35 text-sx-ink font-shell font-bold hover:bg-sx-ink hover:text-sx-cream focus-visible:outline-none focus-visible:ring-4 focus-visible:ring-sx-coral transition-colors"
-        >
-          What is ScribbleX?
-        </button>
+        <p className="font-shell text-sm font-medium text-sx-on-surface-variant/80 mt-4">
+          Rooms and lobbies work.{" "}
+          <button
+            onClick={() => navigate(routes.scribblex.home)}
+            data-testid="scribblex-more-btn"
+            className="underline underline-offset-2 hover:text-sx-primary"
+          >
+            The match itself is next
+          </button>
+          .
+        </p>
       </div>
     </motion.section>
   );
