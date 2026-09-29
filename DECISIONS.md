@@ -151,6 +151,11 @@ import).
 file-upload/preview/import flow (`/api/admin/question-bank/*`) whose UI conventions and
 validation the deck uploader can follow.
 
+**Delivered:** `/admin/decks` in the admin panel, backed by `/api/admin/scribblex/decks`.
+Create, rename, delete, upload a list (.txt/.csv/.json) with a preview before anything is
+saved, or type a few words in. The lobby reads the same decks from the public catalogue, so an
+edit shows up in the next room without a deploy.
+
 ---
 
 ## D10 — A player's public id is not their credential

@@ -5,6 +5,7 @@ import { MongoDeckRepository } from "./games/scribblex/repositories/deck.reposit
 import { ScribbleDeckService } from "./games/scribblex/services/deck.service.js";
 import { ScribbleDrawingService } from "./games/scribblex/services/drawing.service.js";
 import { ScribbleMatchService } from "./games/scribblex/services/match.service.js";
+import { WordFileParser } from "./games/scribblex/services/word-file-parser.js";
 import { ScribbleRoomNotifier } from "./games/scribblex/services/room-notifier.js";
 import { ScribbleRoomService } from "./games/scribblex/services/room.service.js";
 import { ScribbleRoomStore } from "./games/scribblex/services/room-store.js";
@@ -64,7 +65,8 @@ export function createContainer(config: AppConfig, db: Db, logger: Logger, optio
   const scribbleStore = new ScribbleRoomStore();
   const scribbleNotifier = new ScribbleRoomNotifier(scribbleStore);
   const deckRepo = new MongoDeckRepository(db);
-  const scribbleDecks = new ScribbleDeckService(deckRepo);
+  const scribbleDecks = new ScribbleDeckService(deckRepo, profanity);
+  const scribbleWordParser = new WordFileParser(profanity);
   const scribbleMatch = new ScribbleMatchService(scribbleStore, scribbleNotifier, scribbleDecks, logger);
   // The room service drives lobby lifecycle and calls back into the match when a public
   // lobby's countdown expires or a drawer stays gone — a one-way hook, so the two services
@@ -95,6 +97,7 @@ export function createContainer(config: AppConfig, db: Db, logger: Logger, optio
     scribbleRooms,
     scribbleDrawing,
     scribbleDecks,
+    scribbleWordParser,
     scribbleMatch,
     jobs: [
       new RoomCleanupJob(roomStore, gameService, logger),
