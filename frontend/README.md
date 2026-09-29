@@ -32,7 +32,10 @@ npm run e2e
 ```
 
 They drive a real browser against a running stack, so the API must be up on `:8001` with its
-database behind it; the web app is started by the test run if it is not already. Two browser
+database behind it; the web app is started by the test run if it is not already. Set
+`E2E_ADMIN_PASSWORD` (and `E2E_ADMIN_EMAIL` if it is not the local default) to include the test
+that edits a word deck through the admin API and checks it reaches a lobby; without it that one
+test skips. Two browser
 contexts play against each other, and the canvas is checked by drawing on it and reading the
 pixels back — the only way to catch a stroke that renders as disconnected dots, which is
 exactly how that bug reached a player.
