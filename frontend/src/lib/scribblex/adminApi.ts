@@ -28,6 +28,8 @@ export interface DeckMeta {
 }
 
 const base = "/admin/scribblex/decks";
+/** Comfortably under the server's per-request cap, so a long list still arrives whole. */
+const WORDS_PER_REQUEST = 1000;
 
 export const deckAdminApi = {
   async list(): Promise<DeckSummary[]> {
@@ -64,10 +66,23 @@ export const deckAdminApi = {
     return data;
   },
 
-  /** Step 2: add the previewed words. Words already in the deck are skipped, not duplicated. */
+  /**
+   * Step 2: add the previewed words. Words already in the deck are skipped, not duplicated.
+   *
+   * Sent in batches. The server caps how many words one request may carry, and a preview that
+   * says "6000 usable" has to be able to deliver 6000 — otherwise the import fails afterwards
+   * on a limit the owner was never told about, quoting a validation message at them.
+   */
   async addWords(id: string, words: string[]): Promise<{ added: number; word_count: number }> {
-    const { data } = await api.post(`${base}/${encodeURIComponent(id)}/words`, { words });
-    return data;
+    let added = 0;
+    let word_count = 0;
+    for (let i = 0; i < words.length; i += WORDS_PER_REQUEST) {
+      const batch = words.slice(i, i + WORDS_PER_REQUEST);
+      const { data } = await api.post(`${base}/${encodeURIComponent(id)}/words`, { words: batch });
+      added += data.added;
+      word_count = data.word_count;
+    }
+    return { added, word_count };
   },
 
   async removeWord(id: string, word: string): Promise<{ word_count: number }> {
